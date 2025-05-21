@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Verificador de Pallets</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Verificador de Inventario de Pallets</h1>
+        </header>
+
+        <main>
+            <div class="scan-section">
+                <button id="startScanButton" class="btn btn-primary">Escanear ID Pallet</button>
+                <div id="scannerContainer" class="scanner-container hidden">
+                    <video id="scannerVideo" playsinline></video>
+                    <canvas id="scannerCanvas" class="hidden"></canvas> <!-- Para jsQR, no visible directamente -->
+                    <button id="stopScanButton" class="btn btn-danger hidden">Detener Escáner</button>
+                </div>
+                <p>O ingrese manualmente ID Pallet:</p>
+                <input type="text" id="manualPalletIdInput" placeholder="ID del Pallet">
+                <button id="checkManualButton" class="btn">Verificar Manualmente</button>
+            </div>
+
+            <div class="results-section">
+                <h2>Resultado del Escaneo/Verificación Individual:</h2>
+                <div id="loadingIndicator" class="loading hidden"></div>
+                <div id="resultDisplay">
+                    <p>Escanee o ingrese un ID de pallet para ver los resultados.</p>
+                </div>
+            </div>
+
+            <div class="summary-section">
+                <h3>Resumen de Pallet Escaneado Individualmente:</h3>
+                <div id="palletSummary">
+                    <!-- Aquí se mostrarán los detalles del pallet y campos para cantidad contada -->
+                </div>
+            </div>
+            
+            <div class="session-scans-section">
+                <h3>Pallets Escaneados en esta Sesión:</h3>
+                <ul id="sessionScannedList">
+                    <!-- Los items se añadirán aquí por JS -->
+                </ul>
+                <button id="finishSessionButton" class="btn btn-success hidden">Finalizar y Procesar Conteo</button>
+                <div id="sessionResultDisplay">
+                    <!-- Aquí se mostrará el resultado del procesamiento de la sesión -->
+                </div>
+            </div>
+        </main>
+
+        <footer>
+            <p>© 2023 Tu Compañía</p>
+        </footer>
+    </div>
+    <script src="app.js"></script>
+</body>
+</html>
