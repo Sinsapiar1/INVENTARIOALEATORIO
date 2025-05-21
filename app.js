@@ -18,8 +18,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // ---------- CONFIGURACIÓN - ¡REEMPLAZA ESTOS VALORES! ----------
     const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxLFasO1SNvthuC0U54Sqa6igGTk909bHiGX4-nuCOmdsyZ2lXi5Cu5E7AZSc81GtpjMg/exec'; 
     const API_KEY_FOR_SCRIPT = 'TuClaveSecretaInventadaSuperLarga123!@#'; 
-    const SPREADSHEET_ID_FOR_LOG_LINK = "19DyoMu1V7xI5MrnbUvRTCjcKIboQKXS3QjdZt3zc-F4"; // Ej: "123abcXYZ..."
-    const LOG_SHEET_GID_FOR_LOG_LINK = "1250649243"; // Ej: "0" o "123456789"
+    const SPREADSHEET_ID_FOR_LOG_LINK = "19DyoMu1V7xI5MrnbUvRTCjcKIboQKXS3QjdZt3zc-F4"; 
+    const LOG_SHEET_GID_FOR_LOG_LINK = "1250649243"; 
     // ---------------------------------------------------------------
 
     let scanning = false;
@@ -27,6 +27,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let scannedPalletsSessionData = []; 
     let lastScannedIdForTick = null; 
     let scanDebounceTimeout = null;
+    let quaggaScanner = null; // Variable para mantener referencia al escáner
 
     if (!window.InventorySystem) window.InventorySystem = {};
     if (!window.InventorySystem.Utils) window.InventorySystem.Utils = {};
@@ -83,7 +84,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function attachQuantityChangeListeners() {
         document.querySelectorAll('.counted-quantity-input').forEach(input => {
-            input.removeEventListener('input', handleQuantityChange); // Usar 'input' para respuesta inmediata
+            input.removeEventListener('input', handleQuantityChange); 
             input.addEventListener('input', handleQuantityChange);
         });
     }
@@ -108,10 +109,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
             
-            const systemQty = parseFloat(productInfo["Inventario físico"]); // Este es el valor del sistema para este producto
+            const systemQty = parseFloat(productInfo["Inventario físico"]); 
             const diffElementId = `diff-${productInfo["Código de artículo"] || `item-${productIndex}-${Date.now()}`}-${palletId}`;
-            const diffElement = document.getElementById(diffElementId.replace(/[^a-zA-Z0-9-_]/g, '')); // Asegurar ID válido
-
+            const diffElement = document.getElementById(diffElementId.replace(/[^a-zA-Z0-9-_]/g, '')); 
 
             if (diffElement) {
                 if (productInfo.cantidadContada !== undefined && !isNaN(productInfo.cantidadContada) && !isNaN(systemQty)) {
@@ -165,7 +165,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         loadingIndicator.classList.remove('hidden');
         resultDisplay.innerHTML = `<p>Verificando ID: <span class="highlight">${trimmedPalletId}</span>...</p>`;
-        if (!fromScan) { // Si es manual, limpiar resumen previo
+        if (!fromScan) { 
             palletSummary.innerHTML = '';
         }
 
@@ -179,23 +179,19 @@ document.addEventListener('DOMContentLoaded', () => {
             loadingIndicator.classList.add('hidden');
             console.log("Respuesta de doGet:", dataFromServer);
 
-
             if (dataFromServer.error) {
                 displayResult(`Error desde el servidor: ${dataFromServer.error}`, true);
                 const palletInfoError = { id: trimmedPalletId, found: false, products: [], statusSummary: "Error Servidor" };
-                 // Evitar duplicados en la lista de sesión si ya existe por un escaneo previo fallido
                 const existingErrorIndex = scannedPalletsSessionData.findIndex(p => p.id === trimmedPalletId && p.statusSummary === "Error Servidor");
                 if (existingErrorIndex === -1) scannedPalletsSessionData.push(palletInfoError);
 
             } else {
-                // Crear una nueva copia del objeto para la sesión, inicializando cantidadContada
                 const palletInfoForSession = {
                     id: dataFromServer.id,
                     found: dataFromServer.found,
-                    // Mapear products para añadirles la propiedad cantidadContada si no la tienen
                     products: (dataFromServer.products || []).map(p_sistema => ({ 
-                        ...p_sistema, // Copiar todas las propiedades del producto del sistema
-                        cantidadContada: undefined // Inicializar cantidadContada
+                        ...p_sistema, 
+                        cantidadContada: undefined 
                     })),
                     statusSummary: dataFromServer.statusSummary || (dataFromServer.found ? "Mixto" : "No Encontrado")
                 };
@@ -203,7 +199,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const existingEntryIndex = scannedPalletsSessionData.findIndex(p => p.id === palletInfoForSession.id);
                 if (existingEntryIndex > -1) {
                     const existingEntry = scannedPalletsSessionData[existingEntryIndex];
-                    // Conservar cantidades contadas previamente para este pallet si se re-escanea/re-verifica
                     palletInfoForSession.products.forEach((newProdInfo, newProdIndex) => {
                         const existingProdInfo = existingEntry.products.find(
                             ep => ep["Código de artículo"] === newProdInfo["Código de artículo"]
@@ -213,10 +208,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     });
                     scannedPalletsSessionData[existingEntryIndex] = palletInfoForSession;
-                     displayResult(`Pallet ID: ${palletInfoForSession.id} RE-VERIFICADO. Estado Sistema: ${palletInfoForSession.statusSummary}.`, !palletInfoForSession.found);
+                    displayResult(`Pallet ID: ${palletInfoForSession.id} RE-VERIFICADO. Estado Sistema: ${palletInfoForSession.statusSummary}.`, !palletInfoForSession.found);
                 } else {
                     scannedPalletsSessionData.push(palletInfoForSession);
-                     displayResult(`Pallet ID: ${palletInfoForSession.id} ${palletInfoForSession.found ? 'ENCONTRADO' : 'NO ENCONTRADO'}. Estado Sistema: ${palletInfoForSession.statusSummary}. Añadido a la sesión.`, !palletInfoForSession.found);
+                    displayResult(`Pallet ID: ${palletInfoForSession.id} ${palletInfoForSession.found ? 'ENCONTRADO' : 'NO ENCONTRADO'}. Estado Sistema: ${palletInfoForSession.statusSummary}. Añadido a la sesión.`, !palletInfoForSession.found);
                 }
                 
                 displayPalletSummary(palletInfoForSession);
@@ -233,39 +228,130 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function tick() {
-        if (scanning && video.readyState === video.HAVE_ENOUGH_DATA) {
-            canvasElement.height = video.videoHeight;
-            canvasElement.width = video.videoWidth;
-            canvasContext.drawImage(video, 0, 0, canvasElement.width, canvasElement.height);
-            const imageData = canvasContext.getImageData(0, 0, canvasElement.width, canvasElement.height);
-            const code = jsQR(imageData.data, imageData.width, imageData.height, {
-                inversionAttempts: "dontInvert",
-            });
-
-            if (code && code.data.trim() !== "") {
-                const scannedId = code.data.trim();
-                if (scannedId !== lastScannedIdForTick) { 
-                    lastScannedIdForTick = scannedId;
-                    manualPalletIdInput.value = scannedId; 
-                    checkPalletId(scannedId, true); 
-                    
-                    clearTimeout(scanDebounceTimeout);
-                    scanDebounceTimeout = setTimeout(() => {
-                        lastScannedIdForTick = null;
-                        resultDisplay.innerHTML = "<p>Listo para el siguiente escaneo...</p>";
-                    }, 2500); // Aumentado para dar tiempo a que el usuario vea el resultado del escaneo
-                }
-            }
+    // IMPLEMENTACIÓN QUAGGA PARA CÓDIGOS DE BARRAS 1D
+    function initQuagga() {
+        // Solo iniciar si tenemos un elemento video válido
+        if (!video || video.readyState === 0) {
+            console.error('Video element not ready');
+            return;
         }
-        if (scanning) {
-            requestAnimationFrame(tick);
+
+        // Configurar Quagga para la detección de códigos de barras
+        Quagga.init({
+            inputStream: {
+                name: "Live",
+                type: "LiveStream",
+                target: video,
+                constraints: {
+                    width: 640,
+                    height: 480,
+                    facingMode: "environment" // Usar cámara trasera en móviles
+                },
+            },
+            locator: {
+                patchSize: "medium",
+                halfSample: true
+            },
+            numOfWorkers: navigator.hardwareConcurrency || 4,
+            frequency: 10,
+            decoder: {
+                readers: [
+                    // Lista completa de tipos de código de barras soportados
+                    "code_128_reader",
+                    "ean_reader",
+                    "ean_8_reader",
+                    "code_39_reader",
+                    "code_39_vin_reader",
+                    "codabar_reader",
+                    "upc_reader",
+                    "upc_e_reader",
+                    "i2of5_reader",
+                    "2of5_reader",
+                    "code_93_reader"
+                ],
+                multiple: false // Solo detectar un código a la vez
+            },
+            locate: true
+        }, function(err) {
+            if (err) {
+                console.error("Error iniciando Quagga:", err);
+                displayResult("Error al iniciar el escáner: " + err, true);
+                stopScanner();
+                return;
+            }
+            console.log("Quagga iniciado correctamente");
+            Quagga.start();
+            quaggaScanner = true; // Marcar que Quagga está activo
+            
+            // Evento para detectar códigos escaneados
+            Quagga.onDetected(handleQuaggaDetection);
+            
+            // Evento para mostrar los resultados de la localización (opcional, para depuración)
+            if (canvasElement) {
+                Quagga.onProcessed(function(result) {
+                    const drawingCtx = canvasContext;
+                    if (result) {
+                        if (result.boxes) {
+                            drawingCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+                            const hasResult = result.boxes.filter(function(box) {
+                                return box !== result.box;
+                            }).length > 0;
+                            
+                            if (hasResult) {
+                                result.boxes.forEach(function(box) {
+                                    drawingCtx.strokeStyle = "green";
+                                    drawingCtx.lineWidth = 2;
+                                    drawingCtx.strokeRect(box[0], box[1], box[2] - box[0], box[3] - box[1]);
+                                });
+                            }
+                        }
+                        
+                        if (result.box) {
+                            drawingCtx.strokeStyle = "blue";
+                            drawingCtx.lineWidth = 2;
+                            drawingCtx.strokeRect(
+                                result.box.x, result.box.y,
+                                result.box.width, result.box.height
+                            );
+                        }
+                        
+                        if (result.codeResult && result.codeResult.code) {
+                            drawingCtx.font = "24px Arial";
+                            drawingCtx.fillStyle = "green";
+                            const code = result.codeResult.code;
+                            drawingCtx.fillText(code, 10, 50);
+                        }
+                    }
+                });
+            }
+        });
+        
+        // Hacer visible el canvas para ver el procesamiento (opcional)
+        canvasElement.classList.remove('hidden');
+    }
+
+    function handleQuaggaDetection(result) {
+        if (result && result.codeResult && result.codeResult.code) {
+            const scannedCode = result.codeResult.code;
+            console.log("Código detectado:", scannedCode);
+            
+            // Evitar escanear el mismo código repetidamente
+            if (scannedCode !== lastScannedIdForTick) {
+                lastScannedIdForTick = scannedCode;
+                manualPalletIdInput.value = scannedCode;
+                checkPalletId(scannedCode, true);
+                
+                // Reiniciar el debounce para permitir escanear el mismo código después de un tiempo
+                clearTimeout(scanDebounceTimeout);
+                scanDebounceTimeout = setTimeout(() => {
+                    lastScannedIdForTick = null;
+                    resultDisplay.innerHTML = "<p>Listo para el siguiente escaneo...</p>";
+                }, 2500);
+            }
         }
     }
 
     function startScanner() {
-        // No limpiar la sesión aquí, permitir acumular entre sesiones de escaneo.
-        // La limpieza se hará al "Finalizar y Procesar Conteo" o si el usuario desea una nueva sesión.
         palletSummary.innerHTML = ""; 
         resultDisplay.innerHTML = "<p>Iniciando cámara...</p>";
 
@@ -282,7 +368,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     stopScanButton.classList.remove('hidden'); 
                     resultDisplay.innerHTML = "<p>Cámara activa. Apunte al código del pallet.</p>";
                     lastScannedIdForTick = null; 
-                    requestAnimationFrame(tick);
+                    
+                    // Esperar a que el video esté listo antes de iniciar Quagga
+                    video.onloadedmetadata = function() {
+                        initQuagga();
+                    };
                 })
                 .catch(function(err) {
                     console.error("Error al acceder a la cámara: ", err);
@@ -296,16 +386,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function stopScanner() {
         scanning = false;
+        
+        // Detener Quagga si está activo
+        if (quaggaScanner) {
+            Quagga.stop();
+            quaggaScanner = null;
+        }
+        
+        // Detener stream de video
         if (stream) {
             stream.getTracks().forEach(track => track.stop());
             stream = null;
         }
+        
         video.srcObject = null;
         scannerContainer.classList.add('hidden');
+        canvasElement.classList.add('hidden'); // Ocultar canvas
         startScanButton.classList.remove('hidden');
         stopScanButton.classList.add('hidden'); 
-        // No limpiar el resultDisplay aquí para que el último mensaje persista.
-        // resultDisplay.innerHTML = "<p>Escáner detenido.</p>";
         clearTimeout(scanDebounceTimeout); 
     }
 
@@ -340,7 +438,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const result = await response.json(); 
             loadingIndicator.classList.add('hidden');
             console.log("Respuesta de doPost (processSessionWithQuantities):", result);
-
 
             if (result.error) {
                 sessionResultDisplay.innerHTML = `<p class="error">Error al procesar sesión: ${result.error}</p>`;
@@ -382,5 +479,4 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
     finishSessionButton.addEventListener('click', finishAndProcessSession);
-
 });
