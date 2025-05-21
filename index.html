@@ -5,7 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Verificador de Pallets</title>
     <link rel="stylesheet" href="style.css">
-    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+    <!-- Reemplazar jsQR por QuaggaJS para códigos de barras 1D -->
+    <script src="https://cdn.jsdelivr.net/npm/quagga@0.12.1/dist/quagga.min.js"></script>
 </head>
 <body>
     <div class="container">
@@ -18,7 +19,7 @@
                 <button id="startScanButton" class="btn btn-primary">Escanear ID Pallet</button>
                 <div id="scannerContainer" class="scanner-container hidden">
                     <video id="scannerVideo" playsinline></video>
-                    <canvas id="scannerCanvas" class="hidden"></canvas> <!-- Para jsQR, no visible directamente -->
+                    <canvas id="scannerCanvas" class="hidden"></canvas> <!-- Ahora también se usará para visualizar la detección -->
                     <button id="stopScanButton" class="btn btn-danger hidden">Detener Escáner</button>
                 </div>
                 <p>O ingrese manualmente ID Pallet:</p>
@@ -54,7 +55,7 @@
         </main>
 
         <footer>
-            <p>© 2023 Tu Compañía</p>
+            <p>© 2025 Tu Compañía</p>
         </footer>
     </div>
     <script src="app.js"></script>
