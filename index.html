@@ -122,5 +122,113 @@
             }
         });
     </script>
+<!-- Agregar este código al final del body en index.html, justo antes del cierre </body> -->
+
+<!-- Modal para agregar pallet no encontrado -->
+<div id="addPalletModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Agregar Nuevo Pallet</h3>
+            <button class="close-button" id="closeAddPalletModal">&times;</button>
+        </div>
+        
+        <div class="modal-body">
+            <p class="modal-message">El pallet <span id="notFoundPalletId" class="highlight"></span> no fue encontrado en el sistema.</p>
+            <p>¿Desea agregar este pallet y sus productos al inventario?</p>
+            
+            <form id="addPalletForm">
+                <input type="hidden" id="newPalletId" name="newPalletId">
+                
+                <div class="form-group">
+                    <label>Estado del Pallet:</label>
+                    <select id="newPalletStatus" name="newPalletStatus" required>
+                        <option value="positivo">Positivo</option>
+                        <option value="negativo">Negativo</option>
+                        <option value="cero">Cero</option>
+                        <option value="mixto">Mixto</option>
+                    </select>
+                </div>
+                
+                <div class="form-section">
+                    <h4>Productos en el Pallet</h4>
+                    <div id="newProductsList">
+                        <!-- Un producto inicial -->
+                        <div class="product-entry">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Código de Artículo:</label>
+                                    <input type="text" class="product-code" name="productCode[]" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>Nombre del Producto:</label>
+                                    <input type="text" class="product-name" name="productName[]" required>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Inventario Físico:</label>
+                                    <input type="number" class="product-quantity" name="productQuantity[]" required min="0" step="0.01">
+                                </div>
+                                <div class="form-group">
+                                    <label>Almacén:</label>
+                                    <input type="text" class="product-warehouse" name="productWarehouse[]" required>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Física Disponible:</label>
+                                    <input type="number" class="product-available" name="productAvailable[]" min="0" step="0.01">
+                                </div>
+                                <div class="form-group">
+                                    <label>Número de Serie:</label>
+                                    <input type="text" class="product-serial" name="productSerial[]">
+                                </div>
+                            </div>
+                            <button type="button" class="remove-product-btn">&times;</button>
+                        </div>
+                    </div>
+                    
+                    <button type="button" id="addProductButton" class="btn btn-secondary">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"/>
+                            <line x1="12" y1="8" x2="12" y2="16"/>
+                            <line x1="8" y1="12" x2="16" y2="12"/>
+                        </svg>
+                        Agregar Producto
+                    </button>
+                </div>
+                
+                <div class="modal-actions">
+                    <button type="button" id="cancelAddPallet" class="btn btn-outline">Cancelar</button>
+                    <button type="submit" id="confirmAddPallet" class="btn btn-primary">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                            <polyline points="22 4 12 14.01 9 11.01"/>
+                        </svg>
+                        Agregar Pallet
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para confirmar acción -->
+<div id="confirmationModal" class="modal">
+    <div class="modal-content modal-sm">
+        <div class="modal-header">
+            <h3 id="confirmationTitle">Confirmar Acción</h3>
+            <button class="close-button" id="closeConfirmationModal">&times;</button>
+        </div>
+        <div class="modal-body">
+            <p id="confirmationMessage">¿Está seguro de realizar esta acción?</p>
+            <div class="modal-actions">
+                <button id="cancelConfirmationButton" class="btn btn-outline">Cancelar</button>
+                <button id="confirmConfirmationButton" class="btn btn-danger">Confirmar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 </body>
 </html>
