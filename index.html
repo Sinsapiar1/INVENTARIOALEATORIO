@@ -15,7 +15,21 @@
     <div class="container">
         <header>
             <h1>Verificador de Inventario de Pallets</h1>
+            <div class="header-actions">
+                <button id="historyToggleButton" class="btn-header">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <polyline points="12,6 12,12 16,14"/>
+                    </svg>
+                    Ver Historial
+                </button>
+            </div>
         </header>
+
+        <!-- Alerta de recuperación de sesión -->
+        <div id="sessionRecoveryAlert" class="session-recovery-alert hidden">
+            <!-- Se llena dinámicamente -->
+        </div>
 
         <main>
             <div class="scan-section">
@@ -101,10 +115,37 @@
                     <!-- Aquí se mostrará el resultado del procesamiento de la sesión -->
                 </div>
             </div>
+
+            <!-- Sección de historial -->
+            <div id="historySection" class="history-section hidden">
+                <div class="history-header">
+                    <h3>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"/>
+                            <polyline points="12,6 12,12 16,14"/>
+                        </svg>
+                        Historial de Sesiones
+                    </h3>
+                    <button id="clearHistoryButton" class="btn-icon btn-danger-outline" title="Limpiar historial">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="3,6 5,6 21,6"/>
+                            <path d="M19,6V20a2,2,0,0,1-2,2H7a2,2,0,0,1-2-2V6m3,0V4a2,2,0,0,1,2-2h4a2,2,0,0,1,2,2V6"/>
+                            <line x1="10" y1="11" x2="10" y2="17"/>
+                            <line x1="14" y1="11" x2="14" y2="17"/>
+                        </svg>
+                        Limpiar Todo
+                    </button>
+                </div>
+                <div class="history-content">
+                    <ul id="historyList">
+                        <!-- Se llena dinámicamente -->
+                    </ul>
+                </div>
+            </div>
         </main>
 
         <footer>
-            <p>© 2025 Tu Compañía | <span id="appVersion">v2.0.1</span></p>
+            <p>© 2025 Tu Compañía | <span id="appVersion">v2.1.0</span></p>
         </footer>
     </div>
     
@@ -122,7 +163,6 @@
             }
         });
     </script>
-<!-- Agregar este código al final del body en index.html, justo antes del cierre </body> -->
 
 <!-- Modal para agregar pallet no encontrado -->
 <div id="addPalletModal" class="modal">
@@ -213,6 +253,49 @@
     </div>
 </div>
 
+<!-- Modal para editar pallet -->
+<div id="editPalletModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Editar Pallet</h3>
+            <button class="close-button" id="closeEditPalletModal">&times;</button>
+        </div>
+        
+        <div class="modal-body">
+            <form id="editPalletForm">
+                <input type="hidden" id="editPalletId" name="editPalletId">
+                
+                <div class="form-section">
+                    <h4>Productos en el Pallet</h4>
+                    <div id="editProductsList">
+                        <!-- Se llena dinámicamente -->
+                    </div>
+                    
+                    <button type="button" id="addEditProductButton" class="btn btn-secondary">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"/>
+                            <line x1="12" y1="8" x2="12" y2="16"/>
+                            <line x1="8" y1="12" x2="16" y2="12"/>
+                        </svg>
+                        Agregar Producto
+                    </button>
+                </div>
+                
+                <div class="modal-actions">
+                    <button type="button" id="cancelEditPallet" class="btn btn-outline">Cancelar</button>
+                    <button type="submit" id="confirmEditPallet" class="btn btn-primary">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                            <polyline points="22 4 12 14.01 9 11.01"/>
+                        </svg>
+                        Guardar Cambios
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <!-- Modal para confirmar acción -->
 <div id="confirmationModal" class="modal">
     <div class="modal-content modal-sm">
@@ -226,6 +309,19 @@
                 <button id="cancelConfirmationButton" class="btn btn-outline">Cancelar</button>
                 <button id="confirmConfirmationButton" class="btn btn-danger">Confirmar</button>
             </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para detalles de sesión -->
+<div id="sessionDetailModal" class="modal">
+    <div class="modal-content modal-lg">
+        <div class="modal-header">
+            <h3>Detalles de Sesión</h3>
+            <button class="close-button" id="closeSessionDetailModal">&times;</button>
+        </div>
+        <div class="modal-body">
+            <!-- Se llena dinámicamente -->
         </div>
     </div>
 </div>
