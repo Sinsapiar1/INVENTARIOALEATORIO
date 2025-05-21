@@ -62,6 +62,373 @@ document.addEventListener('DOMContentLoaded', () => {
         return String(text).trim().replace(/[^a-zA-Z0-9-_]/g, '-');
     }
 
+    // Objeto para manejar los modales y funcionalidad de agregar pallets
+    const PalletManager = {
+        // Referencias DOM para modales
+        elements: {
+            // Modal agregar pallet
+            addPalletModal: document.getElementById('addPalletModal'),
+            closeAddPalletModal: document.getElementById('closeAddPalletModal'),
+            notFoundPalletId: document.getElementById('notFoundPalletId'),
+            newPalletId: document.getElementById('newPalletId'),
+            addPalletForm: document.getElementById('addPalletForm'),
+            newProductsList: document.getElementById('newProductsList'),
+            addProductButton: document.getElementById('addProductButton'),
+            cancelAddPallet: document.getElementById('cancelAddPallet'),
+            
+            // Modal de confirmación
+            confirmationModal: document.getElementById('confirmationModal'),
+            closeConfirmationModal: document.getElementById('closeConfirmationModal'),
+            confirmationTitle: document.getElementById('confirmationTitle'),
+            confirmationMessage: document.getElementById('confirmationMessage'),
+            cancelConfirmationButton: document.getElementById('cancelConfirmationButton'),
+            confirmConfirmationButton: document.getElementById('confirmConfirmationButton')
+        },
+        
+        // Inicializa los eventos y listeners
+        init: function() {
+            // Inicializar eventos para modal de agregar pallet
+            if (this.elements.closeAddPalletModal) {
+                this.elements.closeAddPalletModal.addEventListener('click', () => {
+                    this.closeModal(this.elements.addPalletModal);
+                });
+            }
+            
+            if (this.elements.addPalletForm) {
+                this.elements.addPalletForm.addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    this.handleAddPalletSubmit();
+                });
+            }
+            
+            if (this.elements.addProductButton) {
+                this.elements.addProductButton.addEventListener('click', () => {
+                    this.addProductEntry();
+                });
+            }
+            
+            if (this.elements.cancelAddPallet) {
+                this.elements.cancelAddPallet.addEventListener('click', () => {
+                    this.closeModal(this.elements.addPalletModal);
+                });
+            }
+            
+            // Delegar eventos para botones de eliminar producto (ya que son dinámicos)
+            if (this.elements.newProductsList) {
+                this.elements.newProductsList.addEventListener('click', (e) => {
+                    if (e.target.classList.contains('remove-product-btn')) {
+                        // Asegurarse de que siempre quede al menos un producto
+                        const productEntries = this.elements.newProductsList.querySelectorAll('.product-entry');
+                        if (productEntries.length > 1) {
+                            e.target.closest('.product-entry').remove();
+                        } else {
+                            displayResult('Debe haber al menos un producto en el pallet.', true);
+                        }
+                    }
+                });
+            }
+            
+            // Inicializar eventos para modal de confirmación
+            if (this.elements.closeConfirmationModal) {
+                this.elements.closeConfirmationModal.addEventListener('click', () => {
+                    this.closeModal(this.elements.confirmationModal);
+                });
+            }
+            
+            if (this.elements.cancelConfirmationButton) {
+                this.elements.cancelConfirmationButton.addEventListener('click', () => {
+                    this.closeModal(this.elements.confirmationModal);
+                });
+            }
+            
+            // Cerrar modales al hacer clic fuera de ellos
+            window.addEventListener('click', (e) => {
+                if (e.target === this.elements.addPalletModal) {
+                    this.closeModal(this.elements.addPalletModal);
+                } else if (e.target === this.elements.confirmationModal) {
+                    this.closeModal(this.elements.confirmationModal);
+                }
+            });
+            
+            // Tecla ESC para cerrar modales
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    this.closeModal(this.elements.addPalletModal);
+                    this.closeModal(this.elements.confirmationModal);
+                }
+            });
+            
+            Logger.log('PalletManager inicializado');
+        },
+        
+        /**
+         * Muestra un modal
+         */
+        openModal: function(modalElement) {
+            if (!modalElement) return;
+            
+            // Añadir clase para mostrar con animación
+            modalElement.classList.add('show');
+            
+            // Bloquear scroll del body
+            document.body.style.overflow = 'hidden';
+        },
+        
+        /**
+         * Cierra un modal
+         */
+        closeModal: function(modalElement) {
+            if (!modalElement) return;
+            
+            // Quitar clase para ocultar con animación
+            modalElement.classList.remove('show');
+            
+            // Restaurar scroll del body
+            document.body.style.overflow = '';
+        },
+        
+        /**
+         * Muestra el modal para agregar un pallet no encontrado
+         */
+        showAddPalletModal: function(palletId) {
+            // Limpiar formulario anterior
+            this.resetAddPalletForm();
+            
+            // Establecer el ID del pallet
+            if (this.elements.notFoundPalletId) {
+                this.elements.notFoundPalletId.textContent = palletId;
+            }
+            if (this.elements.newPalletId) {
+                this.elements.newPalletId.value = palletId;
+            }
+            
+            // Mostrar el modal
+            this.openModal(this.elements.addPalletModal);
+        },
+        
+        /**
+         * Resetea el formulario de agregar pallet
+         */
+        resetAddPalletForm: function() {
+            // Limpiar formulario
+            if (this.elements.addPalletForm) {
+                this.elements.addPalletForm.reset();
+            }
+            
+            // Resetear lista de productos a uno solo
+            if (this.elements.newProductsList) {
+                // Guardar el primer producto como plantilla
+                const firstProduct = this.elements.newProductsList.querySelector('.product-entry');
+                
+                // Limpiar todos los productos
+                this.elements.newProductsList.innerHTML = '';
+                
+                // Clonar la plantilla y limpiar sus campos
+                if (firstProduct) {
+                    const productTemplate = firstProduct.cloneNode(true);
+                    const inputs = productTemplate.querySelectorAll('input');
+                    inputs.forEach(input => {
+                        input.value = '';
+                    });
+                    
+                    // Añadir plantilla limpia
+                    this.elements.newProductsList.appendChild(productTemplate);
+                }
+            }
+        },
+        
+        /**
+         * Añade una entrada para un nuevo producto
+         */
+        addProductEntry: function() {
+            if (!this.elements.newProductsList) return;
+            
+            // Clonar el primer producto como plantilla
+            const firstProduct = this.elements.newProductsList.querySelector('.product-entry');
+            if (!firstProduct) return;
+            
+            const newProduct = firstProduct.cloneNode(true);
+            
+            // Limpiar valores del clon
+            const inputs = newProduct.querySelectorAll('input');
+            inputs.forEach(input => {
+                input.value = '';
+            });
+            
+            // Añadir a la lista
+            this.elements.newProductsList.appendChild(newProduct);
+            
+            // Hacer scroll hasta el nuevo producto
+            newProduct.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        },
+        
+        /**
+         * Procesa la información del formulario cuando se agrega un pallet
+         */
+        handleAddPalletSubmit: async function() {
+            // Validar formulario (HTML5 tiene required, pero verificamos por si acaso)
+            if (!this.validateAddPalletForm()) {
+                return;
+            }
+            
+            try {
+                // Mostrar indicador de carga
+                loadingIndicator.classList.remove('hidden');
+                
+                // Recopilar datos del formulario
+                const formData = this.collectFormData();
+                
+                // Llamar a la función para guardar en el servidor
+                const result = await this.saveNewPallet(formData);
+                
+                if (result && result.success) {
+                    // Mostrar mensaje de éxito
+                    displayResult(`Pallet ${formData.palletId} agregado correctamente al inventario.`, false);
+                    
+                    // Cerrar modal
+                    this.closeModal(this.elements.addPalletModal);
+                    
+                    // Actualizar los datos de la sesión con el nuevo pallet
+                    scannedPalletsSessionData.push(formData.palletData);
+                    
+                    // Actualizar la visualización
+                    displayPalletSummary(formData.palletData);
+                    updateSessionScannedList();
+                } else {
+                    throw new Error(result.error || 'Error desconocido al guardar el pallet.');
+                }
+                
+            } catch (error) {
+                Logger.error('Error al guardar nuevo pallet', error);
+                displayResult(`Error al guardar el pallet: ${error.message}`, true);
+            } finally {
+                loadingIndicator.classList.add('hidden');
+            }
+        },
+        
+        /**
+         * Valida el formulario de agregar pallet
+         */
+        validateAddPalletForm: function() {
+            // Verificar que tenemos al menos un producto
+            const products = this.elements.newProductsList.querySelectorAll('.product-entry');
+            if (products.length === 0) {
+                displayResult('Debe agregar al menos un producto al pallet.', true);
+                return false;
+            }
+            
+            // Validar campos requeridos (aunque HTML5 ya lo hace con required)
+            let isValid = true;
+            
+            // Verificar que todos los campos requeridos tienen valor
+            const requiredInputs = this.elements.addPalletForm.querySelectorAll('[required]');
+            requiredInputs.forEach(input => {
+                if (!input.value.trim()) {
+                    input.classList.add('error');
+                    isValid = false;
+                } else {
+                    input.classList.remove('error');
+                }
+            });
+            
+            if (!isValid) {
+                displayResult('Complete todos los campos requeridos.', true);
+            }
+            
+            return isValid;
+        },
+        
+        /**
+         * Recopila los datos del formulario para crear un nuevo pallet
+         */
+        collectFormData: function() {
+            const palletId = this.elements.newPalletId.value;
+            const statusSummary = this.elements.addPalletForm.querySelector('#newPalletStatus').value;
+            
+            // Recopilar productos
+            const products = [];
+            const productEntries = this.elements.newProductsList.querySelectorAll('.product-entry');
+            
+            productEntries.forEach(entry => {
+                const product = {
+                    "Código de artículo": entry.querySelector('.product-code').value,
+                    "Nombre del producto": entry.querySelector('.product-name').value,
+                    "Inventario físico": entry.querySelector('.product-quantity').value,
+                    "Almacén": entry.querySelector('.product-warehouse').value,
+                };
+                
+                // Campos opcionales
+                const disponible = entry.querySelector('.product-available').value;
+                if (disponible) {
+                    product["Física disponible"] = disponible;
+                }
+                
+                const serial = entry.querySelector('.product-serial').value;
+                if (serial) {
+                    product["Número de serie"] = serial;
+                }
+                
+                products.push(product);
+            });
+            
+            // Crear objeto de datos del pallet para la sesión
+            const palletData = {
+                id: palletId,
+                found: true,
+                products: products,
+                statusSummary: statusSummary + ' (Manual)', // Marcar como agregado manualmente
+                isManuallyAdded: true // Indicador para saber que fue agregado manualmente
+            };
+            
+            return {
+                palletId: palletId,
+                statusSummary: statusSummary,
+                products: products,
+                palletData: palletData
+            };
+        },
+        
+        /**
+         * Simula guardar un nuevo pallet (sólo en sesión)
+         */
+        saveNewPallet: async function(formData) {
+            try {
+                // Simulación de respuesta exitosa (simulamos un retraso de red)
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+                return {
+                    success: true,
+                    message: "Pallet agregado manualmente a la sesión",
+                    palletData: formData.palletData
+                };
+            } catch (error) {
+                Logger.error('Error en saveNewPallet', error);
+                throw error;
+            }
+        },
+        
+        /**
+         * Muestra una confirmación para eliminar un pallet
+         */
+        confirmDeletePallet: function(palletId, callback) {
+            // Configurar modal de confirmación
+            this.elements.confirmationTitle.textContent = 'Eliminar Pallet';
+            this.elements.confirmationMessage.textContent = `¿Está seguro de eliminar el pallet ${palletId} de la sesión?`;
+            
+            // Configurar botón de confirmación
+            this.elements.confirmConfirmationButton.textContent = 'Eliminar';
+            this.elements.confirmConfirmationButton.onclick = () => {
+                this.closeModal(this.elements.confirmationModal);
+                if (typeof callback === 'function') {
+                    callback(true);
+                }
+            };
+            
+            // Abrir modal
+            this.openModal(this.elements.confirmationModal);
+        }
+    };
+
     function displayResult(message, isError = false) {
         resultDisplay.innerHTML = `<p class="${isError ? 'error' : 'success'}">${message}</p>`;
     }
@@ -290,45 +657,72 @@ document.addEventListener('DOMContentLoaded', () => {
                     scannedPalletsSessionData.push(palletInfoError);
                 }
             } else {
-                // Procesar respuesta exitosa
-                const palletInfoForSession = {
-                    id: dataFromServer.id,
-                    found: dataFromServer.found,
-                    products: (dataFromServer.products || []).map(p_sistema => ({ 
-                        ...p_sistema, 
-                        cantidadContada: undefined 
-                    })),
-                    statusSummary: dataFromServer.statusSummary || (dataFromServer.found ? "Mixto" : "No Encontrado")
-                };
-
-                // Actualizar o añadir a la sesión
-                const existingEntryIndex = scannedPalletsSessionData.findIndex(p => p.id === palletInfoForSession.id);
-                
-                if (existingEntryIndex > -1) {
-                    const existingEntry = scannedPalletsSessionData[existingEntryIndex];
+                // Verificar si el pallet fue encontrado
+                if (!dataFromServer.found) {
+                    // CAMBIO AQUÍ: Mostrar modal para preguntar si quiere agregar el pallet
+                    // Agregar a la sesión como no encontrado para mantener registro
+                    const palletInfoNotFound = { 
+                        id: trimmedPalletId, 
+                        found: false, 
+                        products: [], 
+                        statusSummary: "No Encontrado" 
+                    };
                     
-                    // Preservar cantidades contadas
-                    palletInfoForSession.products.forEach((newProdInfo, newProdIndex) => {
-                        const existingProdInfo = existingEntry.products.find(
-                            ep => ep["Código de artículo"] === newProdInfo["Código de artículo"]
-                        );
-                        
-                        if (existingProdInfo && existingProdInfo.cantidadContada !== undefined) {
-                            newProdInfo.cantidadContada = existingProdInfo.cantidadContada;
-                        }
-                    });
+                    const existingNotFoundIndex = scannedPalletsSessionData.findIndex(
+                        p => p.id === trimmedPalletId && !p.found
+                    );
                     
-                    scannedPalletsSessionData[existingEntryIndex] = palletInfoForSession;
-                    displayResult(`Pallet ID: ${palletInfoForSession.id} RE-VERIFICADO. Estado Sistema: ${palletInfoForSession.statusSummary}.`, !palletInfoForSession.found);
+                    if (existingNotFoundIndex === -1) {
+                        scannedPalletsSessionData.push(palletInfoNotFound);
+                    }
+                    
+                    // Mostrar información del pallet no encontrado
+                    displayResult(`Pallet ID: ${trimmedPalletId} NO ENCONTRADO en el inventario.`, true);
+                    displayPalletSummary(palletInfoNotFound);
+                    
+                    // Mostrar modal para agregar pallet
+                    PalletManager.showAddPalletModal(trimmedPalletId);
                 } else {
-                    scannedPalletsSessionData.push(palletInfoForSession);
-                    displayResult(`Pallet ID: ${palletInfoForSession.id} ${palletInfoForSession.found ? 'ENCONTRADO' : 'NO ENCONTRADO'}. Estado Sistema: ${palletInfoForSession.statusSummary}. Añadido a la sesión.`, !palletInfoForSession.found);
+                    // Procesar respuesta exitosa (pallet encontrado)
+                    const palletInfoForSession = {
+                        id: dataFromServer.id,
+                        found: dataFromServer.found,
+                        products: (dataFromServer.products || []).map(p_sistema => ({ 
+                            ...p_sistema, 
+                            cantidadContada: undefined 
+                        })),
+                        statusSummary: dataFromServer.statusSummary || (dataFromServer.found ? "Mixto" : "No Encontrado")
+                    };
+
+                    // Actualizar o añadir a la sesión
+                    const existingEntryIndex = scannedPalletsSessionData.findIndex(p => p.id === palletInfoForSession.id);
+                    
+                    if (existingEntryIndex > -1) {
+                        const existingEntry = scannedPalletsSessionData[existingEntryIndex];
+                        
+                        // Preservar cantidades contadas
+                        palletInfoForSession.products.forEach((newProdInfo, newProdIndex) => {
+                            const existingProdInfo = existingEntry.products.find(
+                                ep => ep["Código de artículo"] === newProdInfo["Código de artículo"]
+                            );
+                            
+                            if (existingProdInfo && existingProdInfo.cantidadContada !== undefined) {
+                                newProdInfo.cantidadContada = existingProdInfo.cantidadContada;
+                            }
+                        });
+                        
+                        scannedPalletsSessionData[existingEntryIndex] = palletInfoForSession;
+                        displayResult(`Pallet ID: ${palletInfoForSession.id} RE-VERIFICADO. Estado Sistema: ${palletInfoForSession.statusSummary}.`, !palletInfoForSession.found);
+                    } else {
+                        scannedPalletsSessionData.push(palletInfoForSession);
+                        displayResult(`Pallet ID: ${palletInfoForSession.id} ${palletInfoForSession.found ? 'ENCONTRADO' : 'NO ENCONTRADO'}. Estado Sistema: ${palletInfoForSession.statusSummary}. Añadido a la sesión.`, !palletInfoForSession.found);
+                    }
+                    
+                    displayPalletSummary(palletInfoForSession);
                 }
                 
-                displayPalletSummary(palletInfoForSession);
+                updateSessionScannedList();
             }
-            
-            updateSessionScannedList();
             
         } catch (error) {
             Logger.error('Error al verificar pallet', error);
@@ -839,6 +1233,9 @@ document.addEventListener('DOMContentLoaded', () => {
             stopScanner();
         }
     });
+    
+    // Inicializar PalletManager
+    PalletManager.init();
     
     Logger.log("Aplicación inicializada correctamente");
 });
