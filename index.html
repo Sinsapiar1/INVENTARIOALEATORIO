@@ -2,11 +2,16 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Verificador de Pallets</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+    <meta name="theme-color" content="#3498db">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Verificador de Inventario de Pallets</title>
     <link rel="stylesheet" href="style.css">
-    <!-- Reemplazar jsQR por QuaggaJS para códigos de barras 1D -->
-    <script src="https://cdn.jsdelivr.net/npm/quagga@0.12.1/dist/quagga.min.js"></script>
+    <!-- Usar versión actualizada de Quagga2 -->
+    <script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2@1.8.2/dist/quagga.min.js"></script>
+    <!-- Favicon (opcional) -->
+    <link rel="icon" type="image/png" href="https://cdn-icons-png.flaticon.com/512/9463/9463185.png">
 </head>
 <body>
     <div class="container">
@@ -15,20 +20,54 @@
         </header>
 
         <main>
+            <!-- Botón de pánico para reinicio de emergencia -->
+            <div class="panic-button-container">
+                <button id="resetAppButton" class="btn btn-reset" title="Reiniciar App en caso de errores">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 12a9 9 0 0 1-9 9c-4.97 0-9-4.03-9-9s4.03-9 9-9h3.73l-1.9-2.12c-.42-.47-.38-1.19.08-1.61.47-.42 1.19-.38 1.61.08l3.5 3.9c.36.4.36 1 0 1.4l-3.5 3.9c-.21.24-.51.36-.8.36-.27 0-.54-.1-.75-.3-.42-.47-.38-1.19.08-1.61L15.27 5H12c-3.87 0-7 3.13-7 7s3.13 7 7 7 7-3.13 7-7h2Z"/>
+                    </svg>
+                </button>
+            </div>
+
             <div class="scan-section">
-                <button id="startScanButton" class="btn btn-primary">Escanear ID Pallet</button>
+                <button id="startScanButton" class="btn btn-primary">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="4" width="18" height="16" rx="2"/>
+                        <line x1="4" y1="9" x2="20" y2="9"/>
+                        <line x1="4" y1="14" x2="20" y2="14"/>
+                        <line x1="7" y1="4" x2="7" y2="20"/>
+                        <line x1="17" y1="4" x2="17" y2="20"/>
+                    </svg>
+                    Escanear ID Pallet
+                </button>
+                
                 <div id="scannerContainer" class="scanner-container hidden">
+                    <div class="scanner-feedback">
+                        <div class="scanner-target-border"></div>
+                        <div class="scanner-laser"></div>
+                    </div>
                     <video id="scannerVideo" playsinline></video>
-                    <canvas id="scannerCanvas" class="hidden"></canvas> <!-- Ahora también se usará para visualizar la detección -->
-                    <button id="stopScanButton" class="btn btn-danger hidden">Detener Escáner</button>
+                    <canvas id="scannerCanvas" class="hidden"></canvas>
+                    <button id="stopScanButton" class="btn btn-danger scanner-control-button hidden">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"/>
+                            <line x1="8" y1="12" x2="16" y2="12"/>
+                        </svg>
+                        Detener Escáner
+                    </button>
                 </div>
-                <p>O ingrese manualmente ID Pallet:</p>
-                <input type="text" id="manualPalletIdInput" placeholder="ID del Pallet">
-                <button id="checkManualButton" class="btn">Verificar Manualmente</button>
+                
+                <div class="manual-input-section">
+                    <p>O ingrese manualmente ID Pallet:</p>
+                    <div class="input-group">
+                        <input type="text" id="manualPalletIdInput" placeholder="ID del Pallet" autocomplete="off">
+                        <button id="checkManualButton" class="btn">Verificar</button>
+                    </div>
+                </div>
             </div>
 
             <div class="results-section">
-                <h2>Resultado del Escaneo/Verificación Individual:</h2>
+                <h2>Resultado:</h2>
                 <div id="loadingIndicator" class="loading hidden"></div>
                 <div id="resultDisplay">
                     <p>Escanee o ingrese un ID de pallet para ver los resultados.</p>
@@ -36,18 +75,33 @@
             </div>
 
             <div class="summary-section">
-                <h3>Resumen de Pallet Escaneado Individualmente:</h3>
+                <h3>Resumen de Pallet Individual:</h3>
                 <div id="palletSummary">
                     <!-- Aquí se mostrarán los detalles del pallet y campos para cantidad contada -->
                 </div>
             </div>
             
             <div class="session-scans-section">
-                <h3>Pallets Escaneados en esta Sesión:</h3>
+                <h3>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                        <polyline points="22 4 12 14.01 9 11.01"/>
+                    </svg>
+                    Pallets Escaneados en Sesión:
+                </h3>
+                
                 <ul id="sessionScannedList">
                     <!-- Los items se añadirán aquí por JS -->
                 </ul>
-                <button id="finishSessionButton" class="btn btn-success hidden">Finalizar y Procesar Conteo</button>
+                
+                <button id="finishSessionButton" class="btn btn-success hidden">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                        <polyline points="22 4 12 14.01 9 11.01"/>
+                    </svg>
+                    Finalizar y Procesar Conteo
+                </button>
+                
                 <div id="sessionResultDisplay">
                     <!-- Aquí se mostrará el resultado del procesamiento de la sesión -->
                 </div>
@@ -55,9 +109,16 @@
         </main>
 
         <footer>
-            <p>© 2025 Tu Compañía</p>
+            <p>© 2025 Tu Compañía | <span id="appVersion">v2.0.0</span></p>
         </footer>
     </div>
+    
+    <!-- Sonidos para feedback auditivo -->
+    <audio id="scanSuccessSound" preload="auto">
+        <source src="https://cdn.jsdelivr.net/gh/soundkit/free-sound-effects@master/mp3/scanner-beep-checkout.mp3" type="audio/mpeg">
+    </audio>
+    
+    <!-- Script principal -->
     <script src="app.js"></script>
 </body>
 </html>
