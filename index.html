@@ -296,7 +296,7 @@
     </div>
 </div>
 
-<!-- Modal para confirmar acción -->
+<!-- Modal para confirmar acción (genérico) -->
 <div id="confirmationModal" class="modal">
     <div class="modal-content modal-sm">
         <div class="modal-header">
@@ -312,6 +312,37 @@
         </div>
     </div>
 </div>
+
+<!-- NUEVO MODAL DE CONFIRMACIÓN DE ESCANEO -->
+<div id="scanConfirmationModal" class="modal">
+    <div class="modal-content modal-sm">
+        <div class="modal-header">
+            <h3>Código de Barras Escaneado</h3>
+            <button class="close-button" id="closeScanConfirmationModal">&times;</button>
+        </div>
+        <div class="modal-body">
+            <p class="modal-message">Se ha detectado el siguiente código de pallet:</p>
+            <h4 id="scannedCodeDisplay" class="highlight" style="font-size: 1.5em; text-align: center; word-break: break-all;"></h4>
+            <div class="modal-actions">
+                <button id="rescanButton" class="btn btn-outline">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 12a9 9 0 0 1-9 9A9.75 9.75 0 0 1 5 17.27L2.61 19.38c-.28.27-.6.42-.95.42-.35 0-.67-.15-.95-.42l-.71-.71c-.28-.27-.43-.6-.43-.95 0-.35.15-.67.43-.95l2.12-2.12A9 9 0 0 1 12 3a9 9 0 0 1 9 9z"/>
+                        <path d="M12 7v5l3 3"/>
+                    </svg>
+                    Re-escanear
+                </button>
+                <button id="confirmScanButton" class="btn btn-primary">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                        <polyline points="22 4 12 14.01 9 11.01"/>
+                    </svg>
+                    Confirmar Búsqueda
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 
 <!-- Modal para detalles de sesión -->
 <div id="sessionDetailModal" class="modal">
