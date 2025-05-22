@@ -900,7 +900,7 @@ footer {
     .btn { width: 100%; box-sizing: border-box; margin-bottom: 10px; }
     input[type="text"], input[type="number"] { width: 100%; }
     #palletSummary li strong { min-width: unset; display: block; margin-bottom: 2px; }
-    input. counted-quantity-input { 
+    input.counted-quantity-input { 
         width: 100px; 
         margin-left: 0; 
         display: block; 
@@ -912,3 +912,334 @@ footer {
     }
 }
 
+/* Estilos adicionales recomendados para el inventario */
+
+/* Botones con iconos */
+.btn-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px;
+    border: 1px solid #ddd;
+    background: #f8f9fa;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin: 0 2px;
+}
+
+.btn-icon:hover {
+    background: #e9ecef;
+    border-color: #adb5bd;
+}
+
+.btn-icon svg {
+    width: 16px;
+    height: 16px;
+}
+
+.btn-danger-outline {
+    border-color: #dc3545;
+    color: #dc3545;
+}
+
+.btn-danger-outline:hover {
+    background: #dc3545;
+    color: white;
+}
+
+/* Header con acciones */
+.header-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.btn-header {
+    background: rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: white;
+    padding: 8px 12px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s;
+}
+
+.btn-header:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+/* Elementos de sesión */
+.session-item-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+}
+
+.session-item-main {
+    flex: 1;
+}
+
+.session-item-actions {
+    display: flex;
+    gap: 5px;
+}
+
+.session-item-progress {
+    margin-top: 5px;
+    font-size: 0.85em;
+    color: #666;
+}
+
+.count-complete {
+    color: #28a745;
+    font-weight: bold;
+}
+
+.count-incomplete {
+    color: #ffc107;
+    font-weight: bold;
+}
+
+/* Resumen de pallet */
+.pallet-summary-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #3498db;
+}
+
+.pallet-summary-header h4 {
+    margin: 0;
+}
+
+/* Entrada de productos con error */
+input.error {
+    border-color: #dc3545;
+    box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25);
+}
+
+/* Historial */
+.history-empty,
+.history-error {
+    text-align: center;
+    padding: 20px;
+    color: #6c757d;
+    font-style: italic;
+}
+
+.history-error {
+    color: #dc3545;
+}
+
+.history-date {
+    font-size: 0.9em;
+    color: #6c757d;
+    margin-left: 10px;
+}
+
+.summary-item {
+    display: inline-block;
+    margin-right: 15px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 0.85em;
+}
+
+.summary-item.found {
+    background-color: rgba(40, 167, 69, 0.1);
+    color: #28a745;
+}
+
+.summary-item.not-found {
+    background-color: rgba(220, 53, 69, 0.1);
+    color: #dc3545;
+}
+
+.summary-item.counted {
+    background-color: rgba(23, 162, 184, 0.1);
+    color: #17a2b8;
+}
+
+/* Modal de detalles de sesión */
+.modal-lg {
+    max-width: 800px;
+}
+
+.session-detail-header h4 {
+    margin-bottom: 20px;
+    color: #2c3e50;
+}
+
+.session-summary-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.summary-card {
+    text-align: center;
+    padding: 15px;
+    border-radius: 8px;
+    background: #f8f9fa;
+    border-left: 4px solid #6c757d;
+}
+
+.summary-card.found {
+    border-left-color: #28a745;
+}
+
+.summary-card.not-found {
+    border-left-color: #dc3545;
+}
+
+.summary-card.counted {
+    border-left-color: #17a2b8;
+}
+
+.summary-card-number {
+    font-size: 1.5em;
+    font-weight: bold;
+    color: #2c3e50;
+}
+
+.summary-card-label {
+    font-size: 0.85em;
+    color: #6c757d;
+}
+
+.session-pallets-list h5 {
+    margin: 20px 0 15px 0;
+    color: #2c3e50;
+}
+
+.session-pallet-item {
+    background: #f8f9fa;
+    border-radius: 6px;
+    padding: 12px;
+    margin-bottom: 10px;
+    border-left: 4px solid #6c757d;
+}
+
+.pallet-item-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+
+.pallet-number {
+    font-weight: bold;
+    color: #6c757d;
+}
+
+.pallet-id {
+    font-weight: bold;
+    color: #2c3e50;
+}
+
+.pallet-item-progress {
+    margin-top: 8px;
+}
+
+.progress-text {
+    font-size: 0.85em;
+    color: #6c757d;
+    margin-bottom: 5px;
+    display: block;
+}
+
+.progress-bar {
+    width: 100%;
+    height: 6px;
+    background: #e9ecef;
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background: #28a745;
+    transition: width 0.3s ease;
+}
+
+/* Alerta de recuperación de sesión */
+.session-recovery-alert {
+    background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
+    border: 1px solid #ffeaa7;
+    border-radius: 6px;
+    padding: 20px;
+    margin: 15px 0;
+    text-align: center;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.session-recovery-alert p {
+    margin: 8px 0;
+}
+
+.session-recovery-alert strong {
+    color: #856404;
+}
+
+.recovery-actions {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    margin-top: 15px;
+}
+
+/* Responsive improvements */
+@media (max-width: 768px) {
+    .header-actions {
+        flex-direction: column;
+        gap: 5px;
+    }
+    
+    .btn-header {
+        font-size: 0.9em;
+        padding: 6px 10px;
+    }
+    
+    .session-item-content {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+    
+    .session-item-actions {
+        width: 100%;
+        justify-content: flex-end;
+    }
+    
+    .session-summary-cards {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .pallet-item-header {
+        flex-wrap: wrap;
+    }
+    
+    .recovery-actions {
+        flex-direction: column;
+        gap: 10px;
+    }
+}
+
+@media (max-width: 480px) {
+    .session-summary-cards {
+        grid-template-columns: 1fr;
+    }
+    
+    .summary-item {
+        display: block;
+        margin: 5px 0;
+        text-align: center;
+    }
+}
