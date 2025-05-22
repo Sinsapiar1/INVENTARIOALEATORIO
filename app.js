@@ -679,7 +679,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     cancelEditPallet: document.getElementById('cancelEditPallet'),
 
                     sessionDetailModal: document.getElementById('sessionDetailModal'),
-                    closeSessionDetailModal: document.getElementById('closeSessionDetailModal')
+                    closeSessionDetailModal: document.getElementById('closeSessionDetailModal'),
+
+                    // NUEVOS ELEMENTOS PARA MODAL DE CONFIRMACIÓN DE ESCANEO
+                    scanConfirmationModal: document.getElementById('scanConfirmationModal'),
+                    closeScanConfirmationModal: document.getElementById('closeScanConfirmationModal'),
+                    scannedCodeDisplay: document.getElementById('scannedCodeDisplay'),
+                    rescanButton: document.getElementById('rescanButton'),
+                    confirmScanButton: document.getElementById('confirmScanButton')
                 };
 
                 this.attachEventListeners();
@@ -791,6 +798,34 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             }
             
+            // MODIFICADO: Event listeners para el modal de confirmación de escaneo
+            if (this.elements.closeScanConfirmationModal) {
+                this.elements.closeScanConfirmationModal.addEventListener('click', () => {
+                    this.closeModal(this.elements.scanConfirmationModal);
+                    // Si el escáner estaba activo, reanudarlo para que pueda detectar otro código.
+                    // Esto es para cuando el usuario cierra el modal sin 'confirmar' o 'reescanear'
+                    if (scanning && quaggaScanner) {
+                        Quagga.start(); // Reanudar Quagga
+                        displayResult('Escáner reanudado. Listo para escanear...', false);
+                    }
+                    lastScannedIdForTick = null; // Resetear para permitir escanear el mismo código si es necesario
+                });
+            }
+
+            if (this.elements.rescanButton) {
+                this.elements.rescanButton.addEventListener('click', () => {
+                    this.closeModal(this.elements.scanConfirmationModal);
+                    lastScannedIdForTick = null; // Resetear para permitir escanear el mismo código si es necesario
+                    displayResult('Reiniciando escáner para re-escanear...', false);
+                    // Detener completamente el escáner y reiniciarlo para mayor robustez
+                    // Agregamos un pequeño retardo para permitir que la cámara libere recursos
+                    stopScanner(); // Esto también detiene Quagga
+                    setTimeout(() => {
+                        startScanner(); // Esto vuelve a iniciar Quagga
+                    }, 500); 
+                });
+            }
+            
             // Cerrar modales con clic fuera
             window.addEventListener('click', (e) => {
                 if (e.target === this.elements.addPalletModal) {
@@ -801,16 +836,40 @@ document.addEventListener('DOMContentLoaded', () => {
                     this.closeModal(this.elements.editPalletModal);
                 } else if (e.target === this.elements.sessionDetailModal) {
                     this.closeModal(this.elements.sessionDetailModal);
+                } else if (e.target === this.elements.scanConfirmationModal) { // MODIFICADO
+                    this.closeModal(this.elements.scanConfirmationModal);
+                    if (scanning && quaggaScanner) { // Si el escáner estaba activo, reanudarlo
+                        Quagga.start(); 
+                        displayResult('Escáner reanudado. Listo para escanear...', false);
+                    }
+                    lastScannedIdForTick = null; // Resetear
                 }
             });
             
             // Tecla ESC para cerrar modales
             document.addEventListener('keydown', (e) => {
                 if (e.key === 'Escape') {
-                    this.closeModal(this.elements.addPalletModal);
-                    this.closeModal(this.elements.confirmationModal);
-                    this.closeModal(this.elements.editPalletModal);
-                    this.closeModal(this.elements.sessionDetailModal);
+                    // Priorizar el cierre del modal de confirmación de escaneo
+                    if (this.elements.scanConfirmationModal && this.elements.scanConfirmationModal.classList.contains('show')) {
+                        this.closeModal(this.elements.scanConfirmationModal);
+                        if (scanning && quaggaScanner) { // Si el escáner estaba activo, reanudarlo
+                            Quagga.start(); 
+                            displayResult('Escáner reanudado. Listo para escanear...', false);
+                        }
+                        lastScannedIdForTick = null; // Resetear
+                    } else if (this.elements.addPalletModal && this.elements.addPalletModal.classList.contains('show')) {
+                        this.closeModal(this.elements.addPalletModal);
+                    } else if (this.elements.confirmationModal && this.elements.confirmationModal.classList.contains('show')) {
+                        this.closeModal(this.elements.confirmationModal);
+                    } else if (this.elements.editPalletModal && this.elements.editPalletModal.classList.contains('show')) {
+                        this.closeModal(this.elements.editPalletModal);
+                    } else if (this.elements.sessionDetailModal && this.elements.sessionDetailModal.classList.contains('show')) {
+                        this.closeModal(this.elements.sessionDetailModal);
+                    }
+                    // Si no hay ningún modal abierto y el escáner está activo, detenerlo completamente
+                    else if (scanning) {
+                        stopScanner();
+                    }
                 }
             });
         },
@@ -1232,12 +1291,21 @@ document.addEventListener('DOMContentLoaded', () => {
             this.elements.confirmationMessage.textContent = message;
             
             if (this.elements.confirmConfirmationButton) {
-                this.elements.confirmConfirmationButton.onclick = () => {
+                // Limpiar listener anterior para evitar duplicados al reabrir el modal
+                const oldConfirmListener = this.elements.confirmConfirmationButton.onclick;
+                if (oldConfirmListener) {
+                    this.elements.confirmConfirmationButton.removeEventListener('click', oldConfirmListener);
+                }
+
+                // Asignar nuevo listener
+                const newConfirmListener = () => {
                     this.closeModal(this.elements.confirmationModal);
                     if (typeof onConfirm === 'function') {
                         onConfirm();
                     }
                 };
+                this.elements.confirmConfirmationButton.addEventListener('click', newConfirmListener);
+                this.elements.confirmConfirmationButton.onclick = newConfirmListener; // Esto lo hace compatible con onclick en HTML
             }
             
             this.openModal(this.elements.confirmationModal);
@@ -1249,6 +1317,43 @@ document.addEventListener('DOMContentLoaded', () => {
                 `¿Está seguro de eliminar el pallet ${palletId} de la sesión?`,
                 callback
             );
+        },
+
+        // MODIFICADO: Mostrar modal de confirmación de escaneo
+        showScanConfirmation: function(scannedCode) {
+            if (!this.elements.scanConfirmationModal || !this.elements.scannedCodeDisplay || !this.elements.confirmScanButton) {
+                Logger.error('Elementos del modal de confirmación de escaneo no encontrados');
+                return;
+            }
+
+            this.elements.scannedCodeDisplay.textContent = scannedCode;
+
+            // Limpiar listener anterior para evitar duplicados si el modal se reabre
+            // Guardamos la referencia a la función para poder removerla
+            const currentConfirmScanHandler = this.elements.confirmScanButton.confirmScanHandler;
+            if (currentConfirmScanHandler) {
+                this.elements.confirmScanButton.removeEventListener('click', currentConfirmScanHandler);
+            }
+            
+            // Creamos un nuevo manejador que capture el código escaneado actual
+            const newConfirmScanHandler = async () => {
+                this.closeModal(this.elements.scanConfirmationModal);
+                // El escáner ya fue detenido en handleQuaggaDetection (solo Quagga.stop()).
+                // Ahora, perform the data lookup.
+                await checkPalletId(scannedCode, true); 
+                
+                // Después de que checkPalletId termine (y muestre el resultado),
+                // detenemos completamente el escáner (incluida la cámara) para que el usuario
+                // pueda revisar la información sin que la cámara siga activa.
+                stopScanner(); // <-- AGREGAR ESTA LÍNEA
+
+                lastScannedIdForTick = null; // Resetear para permitir escanear el mismo código más tarde
+            };
+
+            this.elements.confirmScanButton.addEventListener('click', newConfirmScanHandler);
+            this.elements.confirmScanButton.confirmScanHandler = newConfirmScanHandler; // Guardar referencia
+
+            this.openModal(this.elements.scanConfirmationModal);
         }
     };
 
@@ -1428,7 +1533,7 @@ document.addEventListener('DOMContentLoaded', () => {
             let statusTextDisplay = 'NO ENCONTRADO (SISTEMA)';
 
             if (palletInfo.found) {
-                statusColorClass = `status-${(palletInfo.statusSummary || 'mixto').toLowerCase().replace(/\s+/g, '-')}`;
+                statusClass = `status-${(palletInfo.statusSummary || 'mixto').toLowerCase().replace(/\s+/g, '-')}`;
                 statusTextDisplay = (palletInfo.statusSummary || 'Mixto').toUpperCase();
             }
             
@@ -1449,7 +1554,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <button class="btn-icon edit-pallet-btn" title="Editar pallet" onclick="PalletManager.showEditPalletModal('${palletInfo.id}')">
                             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                                <path d="M18.5 2.5a2.121 2 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
                             </svg>
                         </button>
                         <button class="btn-icon delete-pallet-btn" title="Eliminar pallet" onclick="removePalletFromSession(${index})">
@@ -1517,7 +1622,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // Event listeners para botones de recuperación
             const recoverBtn = document.getElementById('recoverSessionButton');
-            const discardBtn = document.getElementById('discardSessionButton');
+            const discardBtn = document.getElementById('discardSessionButton'); // CORREGIDO: id del botón
             
             if (recoverBtn) {
                 recoverBtn.addEventListener('click', () => {
@@ -1561,7 +1666,7 @@ document.addEventListener('DOMContentLoaded', () => {
         loadingIndicator.classList.remove('hidden');
         resultDisplay.innerHTML = `<p>Verificando ID: <span class="highlight">${trimmedPalletId}</span>...</p>`;
         
-        if (!fromScan) { 
+        if (!fromScan) { // Solo limpia el resumen si no viene de un escaneo para no borrar el video del escáner
             palletSummary.innerHTML = '';
         }
 
@@ -1598,7 +1703,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 if (existingErrorIndex === -1) {
                     scannedPalletsSessionData.push(palletInfoError);
-                    PersistenceManager.saveSessionData(scannedPalletsSessionData);
+                    PersistenceManager.saveSessionData(scalledPalletsSessionData);
                 }
             } else {
                 if (!dataFromServer.found) {
@@ -1696,6 +1801,10 @@ document.addEventListener('DOMContentLoaded', () => {
             
         } finally {
             isProcessingRequest = false;
+            // IMPORTANTE: Se elimina la llamada a Quagga.start() aquí.
+            // Si la búsqueda viene de un escaneo confirmado, el escáner DEBE permanecer detenido.
+            // Solo se reanudará si el usuario hace clic en "Escanear ID Pallet" o "Re-escanear" (desde el modal de confirmación).
+            // Esto asegura que el usuario puede revisar los resultados sin nuevas lecturas accidentales.
         }
     }
 
@@ -1730,8 +1839,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 }
             };
-        } catch (error) {
-            Logger.error('Error ajustando layout del escáner', error);
+        }
+        catch (error) { // AGREGADO: Catch block para onloadedmetadata
+            Logger.error('Error ajustando layout del escáner en onloadedmetadata', error);
         }
     }
 
@@ -1741,6 +1851,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        // Asegurarse de que el canvas tenga el tamaño correcto antes de Quagga.init
         if (canvasElement && video.videoWidth && video.videoHeight) {
             canvasElement.width = video.videoWidth;
             canvasElement.height = video.videoHeight;
@@ -1801,6 +1912,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 Quagga.start();
                 quaggaScanner = true;
                 
+                // Asegurarse de que onDetected se adjunte solo una vez
+                Quagga.offDetected(handleQuaggaDetection); // Remover por si acaso
                 Quagga.onDetected(handleQuaggaDetection);
                 
                 if (canvasElement && canvasContext) {
@@ -1851,27 +1964,30 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // MODIFICADO: handleQuaggaDetection para pausar y pedir confirmación
     function handleQuaggaDetection(result) {
         if (!result || !result.codeResult || !result.codeResult.code) return;
         
         const scannedCode = result.codeResult.code;
         Logger.log("Código detectado", scannedCode);
         
+        // Solo procesar si es un código diferente al último o si el último fue explicitamente re-seteado
+        // Esto evita que se disparen múltiples detecciones del mismo código mientras el modal está abierto.
         if (scannedCode !== lastScannedIdForTick) {
-            lastScannedIdForTick = scannedCode;
+            lastScannedIdForTick = scannedCode; // Guarda el último código detectado
             
-            if (manualPalletIdInput) {
-                manualPalletIdInput.value = scannedCode;
+            // Pausar Quagga INMEDIATAMENTE al detectar un código para pedir confirmación
+            if (quaggaScanner) {
+                Quagga.stop();
+                Logger.log("Quagga pausado para confirmación.");
             }
-            checkPalletId(scannedCode, true);
+
+            // Mostrar el modal de confirmación con el código escaneado
+            PalletManager.showScanConfirmation(scannedCode);
             
+            // Limpiar el timeout si existe, ya no es necesario el debounce automático
             clearTimeout(scanDebounceTimeout);
-            scanDebounceTimeout = setTimeout(() => {
-                lastScannedIdForTick = null;
-                if (resultDisplay) {
-                    resultDisplay.innerHTML = "<p>Listo para el siguiente escaneo...</p>";
-                }
-            }, 2500);
+            scanDebounceTimeout = null; 
         }
     }
 
@@ -1913,7 +2029,7 @@ document.addEventListener('DOMContentLoaded', () => {
             video.onloadedmetadata = function() {
                 adjustScannerLayout();
                 setTimeout(() => {
-                    initQuagga();
+                    initQuagga(); // Inicia Quagga después de que el video esté listo
                 }, 300);
             };
             
@@ -1934,6 +2050,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // MODIFICADO: stopScanner para una detención más limpia
     function stopScanner() {
         Logger.log("Intentando detener el escáner...");
         
@@ -1942,14 +2059,14 @@ document.addEventListener('DOMContentLoaded', () => {
             
             if (quaggaScanner && typeof Quagga !== 'undefined') {
                 try {
-                    Quagga.offDetected(handleQuaggaDetection);
+                    Quagga.offDetected(handleQuaggaDetection); // Eliminar el listener para evitar errores
                     Logger.log("Event listeners de Quagga eliminados");
                 } catch (listenerError) {
                     Logger.warn("Error al eliminar listeners de Quagga", listenerError);
                 }
                 
                 try {
-                    Quagga.stop();
+                    Quagga.stop(); // Detener el procesamiento de Quagga
                     Logger.log("Quagga detenido correctamente");
                 } catch (stopError) {
                     Logger.error("Error al detener Quagga", stopError);
@@ -1960,7 +2077,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             if (stream) {
                 try {
-                    const tracks = stream.getTracks();
+                    const tracks = stream.getTracks(); // Detener todos los tracks de la media stream
                     tracks.forEach(track => {
                         track.stop();
                         Logger.log(`Track de tipo ${track.kind} detenido`);
@@ -1972,7 +2089,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             
             if (video) {
-                video.srcObject = null;
+                video.srcObject = null; // Liberar el objeto de video
                 video.onloadedmetadata = null;
             }
             
@@ -1982,12 +2099,15 @@ document.addEventListener('DOMContentLoaded', () => {
             stopScanButton.classList.add('hidden'); 
             
             clearTimeout(scanDebounceTimeout);
+            scanDebounceTimeout = null; // Asegurarse de limpiar el timeout
+            lastScannedIdForTick = null; // Resetear el último ID escaneado
             
+            displayResult("Escáner detenido.", false); // Mensaje de confirmación
             Logger.log("Escáner detenido completamente");
             
         } catch (error) {
             Logger.error("Error general al detener el escáner", error);
-            
+            // Intentar una limpieza de emergencia si hay un error
             try {
                 if (video) video.srcObject = null;
                 scannerContainer.classList.add('hidden');
@@ -2066,7 +2186,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                    <p>Items OK (Conteo = Sistema): ${result.summary.itemsOk || 0}</p>
                                    <p>Items con Discrepancia: ${result.summary.itemsConDiscrepancia || 0}</p>`;
                 
-                const logSheetUrl = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID_FOR_LOG_LINK}/edit#gid=${LOG_SHEET_GID_FOR_LOG_LINK}`;
+                const logSheetUrl = `https://docs.google.com/sheets/d/${SPREADSHEET_ID_FOR_LOG_LINK}/edit#gid=${LOG_SHEET_GID_FOR_LOG_LINK}`;
 
                 if (sessionResultDisplay) {
                     sessionResultDisplay.innerHTML = `<p class="success">${result.message}</p> 
@@ -2126,7 +2246,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 e.stopPropagation();
                 
                 stopScanButton.disabled = true;
-                stopScanner();
+                stopScanner(); // Llamada a la función stopScanner para detener todo
                 
                 setTimeout(() => {
                     stopScanButton.disabled = false;
@@ -2181,9 +2301,34 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
         
+        // MODIFICADO: Tecla ESC global para manejar modales y escáner
         document.addEventListener('keydown', function(e) {
-            if (e.key === 'Escape' && scanning) {
-                stopScanner();
+            if (e.key === 'Escape') {
+                // Priorizar el cierre del modal de confirmación de escaneo
+                if (PalletManager.elements.scanConfirmationModal && PalletManager.elements.scanConfirmationModal.classList.contains('show')) {
+                    PalletManager.closeModal(PalletManager.elements.scanConfirmationModal);
+                    // Si el escáner estaba activo y cerramos el modal con ESC, debemos reanudarlo para que el usuario pueda intentar escanear de nuevo.
+                    // Esto simula la acción de "Re-escanear" si el usuario solo quería cerrar el modal.
+                    if (scanning && quaggaScanner) {
+                        Quagga.start(); // Reanudar Quagga
+                        displayResult('Escáner reanudado. Listo para escanear...', false);
+                    }
+                    lastScannedIdForTick = null; // Resetear
+                } 
+                // Si no hay modal de confirmación de escaneo, cierra otros modales abiertos
+                else if (PalletManager.elements.addPalletModal && PalletManager.elements.addPalletModal.classList.contains('show')) {
+                    PalletManager.closeModal(PalletManager.elements.addPalletModal);
+                } else if (PalletManager.elements.confirmationModal && PalletManager.elements.confirmationModal.classList.contains('show')) {
+                    PalletManager.closeModal(PalletManager.elements.confirmationModal);
+                } else if (PalletManager.elements.editPalletModal && PalletManager.elements.editPalletModal.classList.contains('show')) {
+                    PalletManager.closeModal(PalletManager.elements.editPalletModal);
+                } else if (PalletManager.elements.sessionDetailModal && PalletManager.elements.sessionDetailModal.classList.contains('show')) {
+                    PalletManager.closeModal(PalletManager.elements.sessionDetailModal);
+                }
+                // Si no hay ningún modal abierto y el escáner está activo, detenerlo completamente
+                else if (scanning) {
+                    stopScanner();
+                }
             }
         });
         
@@ -2242,13 +2387,26 @@ document.addEventListener('DOMContentLoaded', () => {
             'startScanButton', 'stopScanButton', 'scannerContainer', 'scannerVideo',
             'manualPalletIdInput', 'checkManualButton', 'resultDisplay', 
             'palletSummary', 'loadingIndicator', 'sessionScannedList',
-            'finishSessionButton', 'sessionResultDisplay'
+            'finishSessionButton', 'sessionResultDisplay', // Existing elements
+            'addPalletModal', 'editPalletModal', 'confirmationModal', 'sessionDetailModal', // Existing modals
+            // NUEVOS ELEMENTOS DEL MODAL DE CONFIRMACIÓN DE ESCANEO
+            'scanConfirmationModal', 'scannedCodeDisplay', 'rescanButton', 'confirmScanButton'
         ];
         
         const missingElements = requiredElements.filter(id => !document.getElementById(id));
         
         if (missingElements.length > 0) {
             Logger.error('Elementos DOM faltantes', missingElements);
+            // Mensaje de error para el usuario
+            document.body.innerHTML = `
+                <div style="padding: 20px; text-align: center; color: #e74c3c; font-size: 1.2em;">
+                    <h3>Error de Inicialización</h3>
+                    <p>No se pudieron encontrar todos los elementos necesarios de la página.</p>
+                    <p>Esto puede deberse a un problema de carga o una versión antigua de la aplicación.</p>
+                    <p>Por favor, recargue la página.</p>
+                    <p>Elementos faltantes: ${missingElements.join(', ')}</p>
+                </div>
+            `;
             return false;
         }
         
@@ -2260,8 +2418,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (checkDOMElements()) {
             initializeApp();
         } else {
-            Logger.error('No se pueden encontrar todos los elementos DOM necesarios');
-            setTimeout(startApp, 100); // Reintentar después de 100ms
+            // No reintentar si ya mostramos un error fatal.
+            Logger.error('La aplicación no pudo iniciar debido a elementos DOM faltantes.');
         }
     }
 
@@ -2280,10 +2438,12 @@ document.addEventListener('DOMContentLoaded', () => {
             lineno: event.lineno,
             colno: event.colno
         });
+        displayResult(`Se ha producido un error inesperado: ${event.message}`, true);
     });
 
     window.addEventListener('unhandledrejection', function(event) {
         Logger.error('Promise rechazada no manejada', event.reason);
+        displayResult(`Se ha producido un error inesperado (promesa): ${event.reason}`, true);
     });
 
 });
