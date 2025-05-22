@@ -1,4 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
+    // Elementos del DOM
     const startScanButton = document.getElementById('startScanButton');
     const stopScanButton = document.getElementById('stopScanButton');
     const scannerContainer = document.getElementById('scannerContainer');
@@ -15,13 +16,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const finishSessionButton = document.getElementById('finishSessionButton');
     const sessionResultDisplay = document.getElementById('sessionResultDisplay');
 
-    // Nuevos elementos para historial y edición
+    // Elementos para historial y edición
     const historyToggleButton = document.getElementById('historyToggleButton');
     const historySection = document.getElementById('historySection');
     const clearHistoryButton = document.getElementById('clearHistoryButton');
     const sessionRecoveryAlert = document.getElementById('sessionRecoveryAlert');
-    const recoverSessionButton = document.getElementById('recoverSessionButton');
-    const discardSessionButton = document.getElementById('discardSessionButton');
 
     // ---------- CONFIGURACIÓN - ¡REEMPLAZA ESTOS VALORES! ----------
     const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxLFasO1SNvthuC0U54Sqa6igGTk909bHiGX4-nuCOmdsyZ2lXi5Cu5E7AZSc81GtpjMg/exec'; 
@@ -46,72 +45,155 @@ document.addEventListener('DOMContentLoaded', () => {
     let quaggaScanner = null;
     let isProcessingRequest = false;
 
-    // Sistema de logging
+    // Sistema de logging mejorado
     const Logger = {
-        log: (message, data) => {
-            console.log(`[INFO] ${message}`, data || '');
+        log: (message, data = '') => {
+            const timestamp = new Date().toISOString();
+            console.log(`[${timestamp}] [INFO] ${message}`, data);
         },
-        error: (message, error) => {
-            console.error(`[ERROR] ${message}`, error || '');
+        error: (message, error = '') => {
+            const timestamp = new Date().toISOString();
+            console.error(`[${timestamp}] [ERROR] ${message}`, error);
         },
-        warn: (message, data) => {
-            console.warn(`[WARN] ${message}`, data || '');
+        warn: (message, data = '') => {
+            const timestamp = new Date().toISOString();
+            console.warn(`[${timestamp}] [WARN] ${message}`, data);
+        },
+        debug: (message, data = '') => {
+            const timestamp = new Date().toISOString();
+            if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+                console.debug(`[${timestamp}] [DEBUG] ${message}`, data);
+            }
         }
     };
 
-    // Inicializar utilidades
-    if (!window.InventorySystem) window.InventorySystem = {};
-    if (!window.InventorySystem.Utils) window.InventorySystem.Utils = {};
-    if (!window.InventorySystem.Utils.formatNumber) {
-        InventorySystem.Utils.formatNumber = function(num) {
-            const parsedNum = parseFloat(num);
-            if (isNaN(parsedNum) || num === null || num === undefined || num === '') return 'N/A';
-            return Number(parsedNum).toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
-        };
+    // Inicializar utilidades globales
+    function initializeUtilities() {
+        if (!window.InventorySystem) window.InventorySystem = {};
+        if (!window.InventorySystem.Utils) window.InventorySystem.Utils = {};
+        
+        if (!window.InventorySystem.Utils.formatNumber) {
+            window.InventorySystem.Utils.formatNumber = function(num) {
+                const parsedNum = parseFloat(num);
+                if (isNaN(parsedNum) || num === null || num === undefined || num === '') return 'N/A';
+                return Number(parsedNum).toLocaleString('es-ES', { 
+                    minimumFractionDigits: 0, 
+                    maximumFractionDigits: 2 
+                });
+            };
+        }
+
+        if (!window.InventorySystem.Utils.sanitizeId) {
+            window.InventorySystem.Utils.sanitizeId = function(text) {
+                if (!text) return `item-${Date.now()}`;
+                return String(text).trim().replace(/[^a-zA-Z0-9-_]/g, '-');
+            };
+        }
+
+        if (!window.InventorySystem.Utils.validatePalletId) {
+            window.InventorySystem.Utils.validatePalletId = function(id) {
+                const trimmed = String(id || '').trim();
+                return {
+                    isValid: trimmed.length > 0 && trimmed.length <= 50,
+                    value: trimmed,
+                    error: trimmed.length === 0 ? 'ID requerido' : 
+                           trimmed.length > 50 ? 'ID muy largo' : null
+                };
+            };
+        }
     }
 
-    // Sistema de persistencia
+    // Sistema de persistencia mejorado
     const PersistenceManager = {
-        // Guardar datos de sesión
-        saveSessionData: function(data) {
+        // Verificar disponibilidad de localStorage
+        isAvailable: function() {
             try {
-                const sessionData = {
-                    pallets: data,
-                    timestamp: Date.now(),
-                    sessionId: this.generateSessionId()
-                };
-                localStorage.setItem(STORAGE_KEYS.SESSION_DATA, JSON.stringify(sessionData));
-                localStorage.setItem(STORAGE_KEYS.LAST_SESSION, sessionData.timestamp.toString());
-                Logger.log('Datos de sesión guardados', { pallets: data.length });
+                const test = 'localStorage-test';
+                localStorage.setItem(test, test);
+                localStorage.removeItem(test);
+                return true;
             } catch (error) {
-                Logger.error('Error al guardar datos de sesión', error);
+                Logger.error('localStorage no disponible', error);
+                return false;
             }
         },
 
-        // Cargar datos de sesión
+        // Guardar datos de sesión con validación
+        saveSessionData: function(data) {
+            if (!this.isAvailable()) return false;
+            
+            try {
+                if (!Array.isArray(data)) {
+                    throw new Error('Los datos deben ser un array');
+                }
+
+                const sessionData = {
+                    pallets: data,
+                    timestamp: Date.now(),
+                    sessionId: this.generateSessionId(),
+                    version: '2.1.0'
+                };
+                
+                localStorage.setItem(STORAGE_KEYS.SESSION_DATA, JSON.stringify(sessionData));
+                localStorage.setItem(STORAGE_KEYS.LAST_SESSION, sessionData.timestamp.toString());
+                
+                Logger.log('Datos de sesión guardados', { 
+                    pallets: data.length, 
+                    sessionId: sessionData.sessionId 
+                });
+                return true;
+            } catch (error) {
+                Logger.error('Error al guardar datos de sesión', error);
+                return false;
+            }
+        },
+
+        // Cargar datos de sesión con validación
         loadSessionData: function() {
+            if (!this.isAvailable()) return null;
+            
             try {
                 const sessionData = localStorage.getItem(STORAGE_KEYS.SESSION_DATA);
-                if (sessionData) {
-                    const parsed = JSON.parse(sessionData);
-                    Logger.log('Datos de sesión cargados', { pallets: parsed.pallets.length });
-                    return parsed;
+                if (!sessionData) return null;
+
+                const parsed = JSON.parse(sessionData);
+                
+                // Validar estructura
+                if (!parsed.pallets || !Array.isArray(parsed.pallets)) {
+                    Logger.warn('Datos de sesión inválidos, limpiando...');
+                    this.clearSessionData();
+                    return null;
                 }
+
+                Logger.log('Datos de sesión cargados', { 
+                    pallets: parsed.pallets.length,
+                    sessionId: parsed.sessionId 
+                });
+                return parsed;
             } catch (error) {
                 Logger.error('Error al cargar datos de sesión', error);
+                this.clearSessionData(); // Limpiar datos corruptos
+                return null;
             }
-            return null;
         },
 
         // Limpiar datos de sesión actual
         clearSessionData: function() {
-            localStorage.removeItem(STORAGE_KEYS.SESSION_DATA);
-            localStorage.removeItem(STORAGE_KEYS.LAST_SESSION);
-            Logger.log('Datos de sesión limpiados');
+            if (!this.isAvailable()) return;
+            
+            try {
+                localStorage.removeItem(STORAGE_KEYS.SESSION_DATA);
+                localStorage.removeItem(STORAGE_KEYS.LAST_SESSION);
+                Logger.log('Datos de sesión limpiados');
+            } catch (error) {
+                Logger.error('Error al limpiar datos de sesión', error);
+            }
         },
 
-        // Guardar en historial
+        // Guardar en historial con validación
         saveToHistory: function(sessionData) {
+            if (!this.isAvailable()) return false;
+            
             try {
                 let history = this.getHistory();
                 
@@ -120,10 +202,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     timestamp: sessionData.timestamp || Date.now(),
                     pallets: sessionData.pallets || sessionData,
                     processed: true,
-                    summary: this.generateSessionSummary(sessionData.pallets || sessionData)
+                    summary: this.generateSessionSummary(sessionData.pallets || sessionData),
+                    version: '2.1.0'
                 };
 
-                history.unshift(historyEntry); // Agregar al inicio
+                // Verificar si ya existe la sesión
+                const existingIndex = history.findIndex(h => h.sessionId === historyEntry.sessionId);
+                if (existingIndex !== -1) {
+                    Logger.warn('Sesión ya existe en historial, actualizando...', { sessionId: historyEntry.sessionId });
+                    history[existingIndex] = historyEntry;
+                } else {
+                    history.unshift(historyEntry); // Agregar al inicio
+                }
                 
                 // Mantener solo los últimos 50 registros
                 if (history.length > 50) {
@@ -132,26 +222,46 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 localStorage.setItem(STORAGE_KEYS.HISTORY, JSON.stringify(history));
                 Logger.log('Guardado en historial', { sessionId: historyEntry.sessionId });
+                return true;
             } catch (error) {
                 Logger.error('Error al guardar en historial', error);
+                return false;
             }
         },
 
-        // Obtener historial
+        // Obtener historial con validación
         getHistory: function() {
+            if (!this.isAvailable()) return [];
+            
             try {
                 const history = localStorage.getItem(STORAGE_KEYS.HISTORY);
-                return history ? JSON.parse(history) : [];
+                if (!history) return [];
+                
+                const parsed = JSON.parse(history);
+                if (!Array.isArray(parsed)) {
+                    Logger.warn('Historial inválido, reiniciando...');
+                    this.clearHistory();
+                    return [];
+                }
+                
+                return parsed;
             } catch (error) {
                 Logger.error('Error al obtener historial', error);
+                this.clearHistory(); // Limpiar datos corruptos
                 return [];
             }
         },
 
         // Limpiar historial
         clearHistory: function() {
-            localStorage.removeItem(STORAGE_KEYS.HISTORY);
-            Logger.log('Historial limpiado');
+            if (!this.isAvailable()) return;
+            
+            try {
+                localStorage.removeItem(STORAGE_KEYS.HISTORY);
+                Logger.log('Historial limpiado');
+            } catch (error) {
+                Logger.error('Error al limpiar historial', error);
+            }
         },
 
         // Generar ID de sesión único
@@ -159,8 +269,10 @@ document.addEventListener('DOMContentLoaded', () => {
             return 'session-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
         },
 
-        // Generar resumen de sesión
+        // Generar resumen de sesión mejorado
         generateSessionSummary: function(pallets) {
+            if (!Array.isArray(pallets)) return { total: 0, found: 0, notFound: 0, withCounts: 0, completedItems: 0 };
+            
             const total = pallets.length;
             const found = pallets.filter(p => p.found).length;
             const notFound = total - found;
@@ -168,18 +280,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 p.products && p.products.some(prod => prod.cantidadContada !== undefined)
             ).length;
 
-            return {
-                total,
-                found,
-                notFound,
-                withCounts,
-                completedItems: pallets.reduce((acc, p) => {
-                    if (p.products) {
-                        return acc + p.products.filter(prod => prod.cantidadContada !== undefined).length;
-                    }
-                    return acc;
-                }, 0)
-            };
+            const completedItems = pallets.reduce((acc, p) => {
+                if (p.products && Array.isArray(p.products)) {
+                    return acc + p.products.filter(prod => prod.cantidadContada !== undefined).length;
+                }
+                return acc;
+            }, 0);
+
+            return { total, found, notFound, withCounts, completedItems };
         },
 
         // Verificar si hay una sesión reciente sin procesar
@@ -195,20 +303,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Manejador de historial mejorado
     const HistoryManager = {
+        isVisible: false,
+
         // Mostrar/ocultar sección de historial
         toggleHistorySection: function() {
-            const isVisible = !historySection.classList.contains('hidden');
+            this.isVisible = !this.isVisible;
             
-            if (isVisible) {
-                historySection.classList.add('hidden');
-                historyToggleButton.innerHTML = `
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="12" cy="12" r="10"/>
-                        <polyline points="12,6 12,12 16,14"/>
-                    </svg>
-                    Ver Historial
-                `;
-            } else {
+            if (this.isVisible) {
                 this.renderHistory();
                 historySection.classList.remove('hidden');
                 historyToggleButton.innerHTML = `
@@ -217,12 +318,26 @@ document.addEventListener('DOMContentLoaded', () => {
                     </svg>
                     Ocultar Historial
                 `;
+            } else {
+                historySection.classList.add('hidden');
+                historyToggleButton.innerHTML = `
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <polyline points="12,6 12,12 16,14"/>
+                    </svg>
+                    Ver Historial
+                `;
             }
         },
 
-        // Renderizar historial
+        // Renderizar historial con mejor manejo de errores
         renderHistory: function() {
             const historyList = document.getElementById('historyList');
+            if (!historyList) {
+                Logger.error('Elemento historyList no encontrado');
+                return;
+            }
+
             const history = PersistenceManager.getHistory();
 
             if (history.length === 0) {
@@ -230,82 +345,97 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            historyList.innerHTML = history.map((entry, index) => {
-                const date = new Date(entry.timestamp);
-                const dateStr = date.toLocaleDateString('es-ES', {
-                    day: '2-digit',
-                    month: '2-digit',
-                    year: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit'
-                });
+            try {
+                historyList.innerHTML = history.map((entry, index) => {
+                    const date = new Date(entry.timestamp);
+                    const dateStr = date.toLocaleDateString('es-ES', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    });
 
-                return `
-                    <li class="history-entry" data-session-id="${entry.sessionId}">
-                        <div class="history-entry-header">
-                            <div class="history-entry-info">
-                                <strong>Sesión ${index + 1}</strong>
-                                <span class="history-date">${dateStr}</span>
-                            </div>
-                            <div class="history-entry-actions">
-                                <button class="btn-icon view-session-btn" title="Ver detalles" data-session-id="${entry.sessionId}">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                                        <circle cx="12" cy="12" r="3"/>
-                                    </svg>
-                                </button>
-                                <button class="btn-icon restore-session-btn" title="Restaurar sesión" data-session-id="${entry.sessionId}">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                        <path d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2-2 2 2 0 012-2h10l2 2v2"/>
-                                    </svg>
-                                </button>
-                                <button class="btn-icon delete-session-btn" title="Eliminar sesión" data-session-id="${entry.sessionId}">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                        <polyline points="3,6 5,6 21,6"/>
-                                        <path d="M19,6V20a2,2,0,0,1-2,2H7a2,2,0,0,1-2-2V6m3,0V4a2,2,0,0,1,2-2h4a2,2,0,0,1,2,2V6"/>
-                                    </svg>
-                                </button>
-                            </div>
-                        </div>
-                        <div class="history-entry-summary">
-                            <span class="summary-item">Total: ${entry.summary.total}</span>
-                            <span class="summary-item found">Encontrados: ${entry.summary.found}</span>
-                            <span class="summary-item not-found">No encontrados: ${entry.summary.notFound}</span>
-                            <span class="summary-item counted">Con conteo: ${entry.summary.withCounts}</span>
-                        </div>
-                    </li>
-                `;
-            }).join('');
+                    const summary = entry.summary || { total: 0, found: 0, notFound: 0, withCounts: 0 };
 
-            // Agregar event listeners
-            this.attachHistoryEventListeners();
+                    return `
+                        <li class="history-entry" data-session-id="${entry.sessionId}">
+                            <div class="history-entry-header">
+                                <div class="history-entry-info">
+                                    <strong>Sesión ${index + 1}</strong>
+                                    <span class="history-date">${dateStr}</span>
+                                </div>
+                                <div class="history-entry-actions">
+                                    <button class="btn-icon view-session-btn" title="Ver detalles" data-session-id="${entry.sessionId}">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                            <circle cx="12" cy="12" r="3"/>
+                                        </svg>
+                                    </button>
+                                    <button class="btn-icon restore-session-btn" title="Restaurar sesión" data-session-id="${entry.sessionId}">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <path d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2-2 2 2 0 012-2h10l2 2v2"/>
+                                        </svg>
+                                    </button>
+                                    <button class="btn-icon delete-session-btn" title="Eliminar sesión" data-session-id="${entry.sessionId}">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <polyline points="3,6 5,6 21,6"/>
+                                            <path d="M19,6V20a2,2,0,0,1-2,2H7a2,2,0,0,1-2-2V6m3,0V4a2,2,0,0,1,2-2h4a2,2,0,0,1,2,2V6"/>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="history-entry-summary">
+                                <span class="summary-item">Total: ${summary.total}</span>
+                                <span class="summary-item found">Encontrados: ${summary.found}</span>
+                                <span class="summary-item not-found">No encontrados: ${summary.notFound}</span>
+                                <span class="summary-item counted">Con conteo: ${summary.withCounts}</span>
+                            </div>
+                        </li>
+                    `;
+                }).join('');
+
+                // Agregar event listeners
+                this.attachHistoryEventListeners();
+                
+            } catch (error) {
+                Logger.error('Error al renderizar historial', error);
+                historyList.innerHTML = '<li class="history-error">Error al cargar el historial</li>';
+            }
         },
 
-        // Agregar event listeners para botones del historial
+        // Agregar event listeners para botones del historial con manejo de errores
         attachHistoryEventListeners: function() {
-            // Ver detalles de sesión
-            document.querySelectorAll('.view-session-btn').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    const sessionId = e.target.closest('.view-session-btn').dataset.sessionId;
-                    this.viewSessionDetails(sessionId);
+            try {
+                // Ver detalles de sesión
+                document.querySelectorAll('.view-session-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        const sessionId = e.target.closest('.view-session-btn').dataset.sessionId;
+                        this.viewSessionDetails(sessionId);
+                    });
                 });
-            });
 
-            // Restaurar sesión
-            document.querySelectorAll('.restore-session-btn').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    const sessionId = e.target.closest('.restore-session-btn').dataset.sessionId;
-                    this.confirmRestoreSession(sessionId);
+                // Restaurar sesión
+                document.querySelectorAll('.restore-session-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        const sessionId = e.target.closest('.restore-session-btn').dataset.sessionId;
+                        this.confirmRestoreSession(sessionId);
+                    });
                 });
-            });
 
-            // Eliminar sesión
-            document.querySelectorAll('.delete-session-btn').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    const sessionId = e.target.closest('.delete-session-btn').dataset.sessionId;
-                    this.confirmDeleteSession(sessionId);
+                // Eliminar sesión
+                document.querySelectorAll('.delete-session-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        const sessionId = e.target.closest('.delete-session-btn').dataset.sessionId;
+                        this.confirmDeleteSession(sessionId);
+                    });
                 });
-            });
+            } catch (error) {
+                Logger.error('Error al adjuntar event listeners del historial', error);
+            }
         },
 
         // Ver detalles de una sesión
@@ -340,18 +470,25 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            // Restaurar datos
-            scannedPalletsSessionData = [...session.pallets];
-            
-            // Guardar en sesión actual
-            PersistenceManager.saveSessionData(scannedPalletsSessionData);
-            
-            // Actualizar UI
-            updateSessionScannedList();
-            displayResult(`Sesión restaurada correctamente (${session.pallets.length} pallets)`, false);
-            
-            // Ocultar historial
-            this.toggleHistorySection();
+            try {
+                // Restaurar datos
+                scannedPalletsSessionData = [...session.pallets];
+                
+                // Guardar en sesión actual
+                PersistenceManager.saveSessionData(scannedPalletsSessionData);
+                
+                // Actualizar UI
+                updateSessionScannedList();
+                displayResult(`Sesión restaurada correctamente (${session.pallets.length} pallets)`, false);
+                
+                // Ocultar historial
+                this.toggleHistorySection();
+                
+                Logger.log('Sesión restaurada', { sessionId, pallets: session.pallets.length });
+            } catch (error) {
+                Logger.error('Error al restaurar sesión', error);
+                displayResult('Error al restaurar la sesión', true);
+            }
         },
 
         // Confirmar eliminar sesión
@@ -365,14 +502,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Eliminar sesión del historial
         deleteSession: function(sessionId) {
-            let history = PersistenceManager.getHistory();
-            history = history.filter(s => s.sessionId !== sessionId);
-            
-            localStorage.setItem(STORAGE_KEYS.HISTORY, JSON.stringify(history));
-            
-            // Actualizar vista
-            this.renderHistory();
-            displayResult('Sesión eliminada del historial', false);
+            try {
+                let history = PersistenceManager.getHistory();
+                const originalLength = history.length;
+                
+                history = history.filter(s => s.sessionId !== sessionId);
+                
+                if (history.length === originalLength) {
+                    displayResult('Sesión no encontrada en el historial', true);
+                    return;
+                }
+
+                localStorage.setItem(STORAGE_KEYS.HISTORY, JSON.stringify(history));
+                
+                // Actualizar vista
+                this.renderHistory();
+                displayResult('Sesión eliminada del historial', false);
+                
+                Logger.log('Sesión eliminada del historial', { sessionId });
+            } catch (error) {
+                Logger.error('Error al eliminar sesión', error);
+                displayResult('Error al eliminar la sesión', true);
+            }
         },
 
         // Limpiar todo el historial
@@ -384,133 +535,163 @@ document.addEventListener('DOMContentLoaded', () => {
                     PersistenceManager.clearHistory();
                     this.renderHistory();
                     displayResult('Historial limpiado completamente', false);
+                    Logger.log('Historial completo limpiado');
                 }
             );
         }
     };
 
-    // Modal para detalles de sesión
+    // Modal para detalles de sesión mejorado
     const SessionDetailModal = {
         show: function(session) {
             const modal = document.getElementById('sessionDetailModal');
-            const modalBody = modal.querySelector('.modal-body');
-            
-            const date = new Date(session.timestamp);
-            const dateStr = date.toLocaleDateString('es-ES', {
-                weekday: 'long',
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit'
-            });
+            if (!modal) {
+                Logger.error('Modal de detalles de sesión no encontrado');
+                return;
+            }
 
-            modalBody.innerHTML = `
-                <div class="session-detail-header">
-                    <h4>Sesión del ${dateStr}</h4>
-                    <div class="session-summary-cards">
-                        <div class="summary-card">
-                            <div class="summary-card-number">${session.summary.total}</div>
-                            <div class="summary-card-label">Total Pallets</div>
-                        </div>
-                        <div class="summary-card found">
-                            <div class="summary-card-number">${session.summary.found}</div>
-                            <div class="summary-card-label">Encontrados</div>
-                        </div>
-                        <div class="summary-card not-found">
-                            <div class="summary-card-number">${session.summary.notFound}</div>
-                            <div class="summary-card-label">No Encontrados</div>
-                        </div>
-                        <div class="summary-card counted">
-                            <div class="summary-card-number">${session.summary.withCounts}</div>
-                            <div class="summary-card-label">Con Conteo</div>
+            const modalBody = modal.querySelector('.modal-body');
+            if (!modalBody) {
+                Logger.error('Modal body no encontrado');
+                return;
+            }
+            
+            try {
+                const date = new Date(session.timestamp);
+                const dateStr = date.toLocaleDateString('es-ES', {
+                    weekday: 'long',
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+
+                const summary = session.summary || { total: 0, found: 0, notFound: 0, withCounts: 0 };
+                const pallets = session.pallets || [];
+
+                modalBody.innerHTML = `
+                    <div class="session-detail-header">
+                        <h4>Sesión del ${dateStr}</h4>
+                        <div class="session-summary-cards">
+                            <div class="summary-card">
+                                <div class="summary-card-number">${summary.total}</div>
+                                <div class="summary-card-label">Total Pallets</div>
+                            </div>
+                            <div class="summary-card found">
+                                <div class="summary-card-number">${summary.found}</div>
+                                <div class="summary-card-label">Encontrados</div>
+                            </div>
+                            <div class="summary-card not-found">
+                                <div class="summary-card-number">${summary.notFound}</div>
+                                <div class="summary-card-label">No Encontrados</div>
+                            </div>
+                            <div class="summary-card counted">
+                                <div class="summary-card-number">${summary.withCounts}</div>
+                                <div class="summary-card-label">Con Conteo</div>
+                            </div>
                         </div>
                     </div>
-                </div>
-                
-                <div class="session-pallets-list">
-                    <h5>Pallets en esta sesión:</h5>
-                    ${session.pallets.map((pallet, index) => {
-                        let statusClass = 'status-noencontrado';
-                        let statusText = 'NO ENCONTRADO';
-                        
-                        if (pallet.found) {
-                            statusClass = `status-${(pallet.statusSummary || 'mixto').toLowerCase().replace(/\s+/g, '-')}`;
-                            statusText = (pallet.statusSummary || 'Mixto').toUpperCase();
-                        }
-                        
-                        const productsWithCount = pallet.products ? 
-                            pallet.products.filter(p => p.cantidadContada !== undefined).length : 0;
-                        const totalProducts = pallet.products ? pallet.products.length : 0;
-                        
-                        return `
-                            <div class="session-pallet-item">
-                                <div class="pallet-item-header">
-                                    <span class="pallet-number">${index + 1}.</span>
-                                    <span class="pallet-id">${pallet.id}</span>
-                                    <span class="${statusClass}">${statusText}</span>
-                                </div>
-                                ${totalProducts > 0 ? `
-                                    <div class="pallet-item-progress">
-                                        <span class="progress-text">Productos contados: ${productsWithCount}/${totalProducts}</span>
-                                        <div class="progress-bar">
-                                            <div class="progress-fill" style="width: ${(productsWithCount/totalProducts)*100}%"></div>
-                                        </div>
+                    
+                    <div class="session-pallets-list">
+                        <h5>Pallets en esta sesión:</h5>
+                        ${pallets.map((pallet, index) => {
+                            let statusClass = 'status-noencontrado';
+                            let statusText = 'NO ENCONTRADO';
+                            
+                            if (pallet.found) {
+                                statusClass = `status-${(pallet.statusSummary || 'mixto').toLowerCase().replace(/\s+/g, '-')}`;
+                                statusText = (pallet.statusSummary || 'Mixto').toUpperCase();
+                            }
+                            
+                            const productsWithCount = pallet.products ? 
+                                pallet.products.filter(p => p.cantidadContada !== undefined).length : 0;
+                            const totalProducts = pallet.products ? pallet.products.length : 0;
+                            
+                            return `
+                                <div class="session-pallet-item">
+                                    <div class="pallet-item-header">
+                                        <span class="pallet-number">${index + 1}.</span>
+                                        <span class="pallet-id">${pallet.id || 'ID no disponible'}</span>
+                                        <span class="${statusClass}">${statusText}</span>
                                     </div>
-                                ` : ''}
-                            </div>
-                        `;
-                    }).join('')}
-                </div>
-            `;
-            
-            PalletManager.openModal(modal);
+                                    ${totalProducts > 0 ? `
+                                        <div class="pallet-item-progress">
+                                            <span class="progress-text">Productos contados: ${productsWithCount}/${totalProducts}</span>
+                                            <div class="progress-bar">
+                                                <div class="progress-fill" style="width: ${totalProducts > 0 ? (productsWithCount/totalProducts)*100 : 0}%"></div>
+                                            </div>
+                                        </div>
+                                    ` : ''}
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                `;
+                
+                PalletManager.openModal(modal);
+            } catch (error) {
+                Logger.error('Error al mostrar detalles de sesión', error);
+                modalBody.innerHTML = '<p class="error">Error al cargar los detalles de la sesión</p>';
+                PalletManager.openModal(modal);
+            }
         }
     };
 
-    // Función para sanitizar IDs
+    // Función mejorada para sanitizar IDs
     function getSafeId(text) {
-        if (!text) return `item-${Date.now()}`;
-        return String(text).trim().replace(/[^a-zA-Z0-9-_]/g, '-');
+        return window.InventorySystem.Utils.sanitizeId(text);
     }
 
     // Objeto mejorado para manejar modales y pallets
     const PalletManager = {
-        elements: {
-            // Modal agregar pallet
-            addPalletModal: document.getElementById('addPalletModal'),
-            closeAddPalletModal: document.getElementById('closeAddPalletModal'),
-            notFoundPalletId: document.getElementById('notFoundPalletId'),
-            newPalletId: document.getElementById('newPalletId'),
-            addPalletForm: document.getElementById('addPalletForm'),
-            newProductsList: document.getElementById('newProductsList'),
-            addProductButton: document.getElementById('addProductButton'),
-            cancelAddPallet: document.getElementById('cancelAddPallet'),
-            
-            // Modal de confirmación
-            confirmationModal: document.getElementById('confirmationModal'),
-            closeConfirmationModal: document.getElementById('closeConfirmationModal'),
-            confirmationTitle: document.getElementById('confirmationTitle'),
-            confirmationMessage: document.getElementById('confirmationMessage'),
-            cancelConfirmationButton: document.getElementById('cancelConfirmationButton'),
-            confirmConfirmationButton: document.getElementById('confirmConfirmationButton'),
-
-            // Modal de edición
-            editPalletModal: document.getElementById('editPalletModal'),
-            closeEditPalletModal: document.getElementById('closeEditPalletModal'),
-            editPalletForm: document.getElementById('editPalletForm'),
-            editPalletId: document.getElementById('editPalletId'),
-            editProductsList: document.getElementById('editProductsList'),
-            addEditProductButton: document.getElementById('addEditProductButton'),
-            cancelEditPallet: document.getElementById('cancelEditPallet'),
-
-            // Modal de detalles de sesión
-            sessionDetailModal: document.getElementById('sessionDetailModal'),
-            closeSessionDetailModal: document.getElementById('closeSessionDetailModal')
-        },
+        elements: {},
+        initialized: false,
         
         init: function() {
-            // Event listeners existentes
+            if (this.initialized) return;
+            
+            try {
+                // Obtener elementos del DOM
+                this.elements = {
+                    addPalletModal: document.getElementById('addPalletModal'),
+                    closeAddPalletModal: document.getElementById('closeAddPalletModal'),
+                    notFoundPalletId: document.getElementById('notFoundPalletId'),
+                    newPalletId: document.getElementById('newPalletId'),
+                    addPalletForm: document.getElementById('addPalletForm'),
+                    newProductsList: document.getElementById('newProductsList'),
+                    addProductButton: document.getElementById('addProductButton'),
+                    cancelAddPallet: document.getElementById('cancelAddPallet'),
+                    
+                    confirmationModal: document.getElementById('confirmationModal'),
+                    closeConfirmationModal: document.getElementById('closeConfirmationModal'),
+                    confirmationTitle: document.getElementById('confirmationTitle'),
+                    confirmationMessage: document.getElementById('confirmationMessage'),
+                    cancelConfirmationButton: document.getElementById('cancelConfirmationButton'),
+                    confirmConfirmationButton: document.getElementById('confirmConfirmationButton'),
+
+                    editPalletModal: document.getElementById('editPalletModal'),
+                    closeEditPalletModal: document.getElementById('closeEditPalletModal'),
+                    editPalletForm: document.getElementById('editPalletForm'),
+                    editPalletId: document.getElementById('editPalletId'),
+                    editProductsList: document.getElementById('editProductsList'),
+                    addEditProductButton: document.getElementById('addEditProductButton'),
+                    cancelEditPallet: document.getElementById('cancelEditPallet'),
+
+                    sessionDetailModal: document.getElementById('sessionDetailModal'),
+                    closeSessionDetailModal: document.getElementById('closeSessionDetailModal')
+                };
+
+                this.attachEventListeners();
+                this.initialized = true;
+                Logger.log('PalletManager inicializado correctamente');
+            } catch (error) {
+                Logger.error('Error al inicializar PalletManager', error);
+            }
+        },
+
+        attachEventListeners: function() {
+            // Event listeners para agregar pallet
             if (this.elements.closeAddPalletModal) {
                 this.elements.closeAddPalletModal.addEventListener('click', () => {
                     this.closeModal(this.elements.addPalletModal);
@@ -569,7 +750,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             }
             
-            // Delegar eventos para botones dinámicos
+            // Delegar eventos para botones dinámicos - Agregar pallet
             if (this.elements.newProductsList) {
                 this.elements.newProductsList.addEventListener('click', (e) => {
                     if (e.target.classList.contains('remove-product-btn')) {
@@ -583,6 +764,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             }
 
+            // Delegar eventos para botones dinámicos - Editar pallet
             if (this.elements.editProductsList) {
                 this.elements.editProductsList.addEventListener('click', (e) => {
                     if (e.target.classList.contains('remove-product-btn')) {
@@ -631,30 +813,43 @@ document.addEventListener('DOMContentLoaded', () => {
                     this.closeModal(this.elements.sessionDetailModal);
                 }
             });
-            
-            Logger.log('PalletManager inicializado');
         },
         
         openModal: function(modalElement) {
-            if (!modalElement) return;
-            modalElement.classList.add('show');
-            document.body.style.overflow = 'hidden';
+            if (!modalElement) {
+                Logger.warn('Intento de abrir modal nulo');
+                return;
+            }
+            
+            try {
+                modalElement.classList.add('show');
+                document.body.style.overflow = 'hidden';
+                Logger.debug('Modal abierto', { modal: modalElement.id });
+            } catch (error) {
+                Logger.error('Error al abrir modal', error);
+            }
         },
         
         closeModal: function(modalElement) {
             if (!modalElement) return;
-            modalElement.classList.remove('show');
-            document.body.style.overflow = '';
+            
+            try {
+                modalElement.classList.remove('show');
+                document.body.style.overflow = '';
+                Logger.debug('Modal cerrado', { modal: modalElement.id });
+            } catch (error) {
+                Logger.error('Error al cerrar modal', error);
+            }
         },
         
         showAddPalletModal: function(palletId) {
             this.resetAddPalletForm();
             
             if (this.elements.notFoundPalletId) {
-                this.elements.notFoundPalletId.textContent = palletId;
+                this.elements.notFoundPalletId.textContent = palletId || 'ID no disponible';
             }
             if (this.elements.newPalletId) {
-                this.elements.newPalletId.value = palletId;
+                this.elements.newPalletId.value = palletId || '';
             }
             
             this.openModal(this.elements.addPalletModal);
@@ -675,7 +870,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Poblar formulario de edición
         populateEditForm: function(palletData) {
             if (this.elements.editPalletId) {
-                this.elements.editPalletId.value = palletData.id;
+                this.elements.editPalletId.value = palletData.id || '';
             }
 
             // Limpiar productos existentes
@@ -683,10 +878,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.elements.editProductsList.innerHTML = '';
 
                 // Agregar productos del pallet
-                palletData.products.forEach(product => {
-                    const productEntry = this.createEditProductEntry(product);
+                if (palletData.products && Array.isArray(palletData.products)) {
+                    palletData.products.forEach(product => {
+                        const productEntry = this.createEditProductEntry(product);
+                        this.elements.editProductsList.appendChild(productEntry);
+                    });
+                } else {
+                    // Si no hay productos, agregar uno vacío
+                    const productEntry = this.createEditProductEntry();
                     this.elements.editProductsList.appendChild(productEntry);
-                });
+                }
             }
         },
 
@@ -765,7 +966,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 scannedPalletsSessionData[palletIndex] = formData.palletData;
 
                 // Guardar en localStorage
-                PersistenceManager.saveSessionData(scannedPalletsSessionData);
+                if (!PersistenceManager.saveSessionData(scannedPalletsSessionData)) {
+                    Logger.warn('No se pudo guardar en localStorage');
+                }
 
                 // Actualizar UI
                 updateSessionScannedList();
@@ -784,6 +987,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Validar formulario de edición
         validateEditPalletForm: function() {
+            if (!this.elements.editProductsList) return false;
+            
             const products = this.elements.editProductsList.querySelectorAll('.product-entry');
             if (products.length === 0) {
                 displayResult('Debe tener al menos un producto en el pallet.', true);
@@ -869,6 +1074,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const inputs = productTemplate.querySelectorAll('input');
                     inputs.forEach(input => {
                         input.value = '';
+                        input.classList.remove('error');
                     });
                     this.elements.newProductsList.appendChild(productTemplate);
                 }
@@ -885,6 +1091,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const inputs = newProduct.querySelectorAll('input');
             inputs.forEach(input => {
                 input.value = '';
+                input.classList.remove('error');
             });
             
             this.elements.newProductsList.appendChild(newProduct);
@@ -913,6 +1120,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     
                     displayPalletSummary(formData.palletData);
                     updateSessionScannedList();
+                    
+                    Logger.log('Nuevo pallet agregado', { id: formData.palletId });
                 } else {
                     throw new Error(result.error || 'Error desconocido al guardar el pallet.');
                 }
@@ -926,6 +1135,8 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         
         validateAddPalletForm: function() {
+            if (!this.elements.newProductsList) return false;
+            
             const products = this.elements.newProductsList.querySelectorAll('.product-entry');
             if (products.length === 0) {
                 displayResult('Debe agregar al menos un producto al pallet.', true);
@@ -996,6 +1207,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         saveNewPallet: async function(formData) {
             try {
+                // Simular guardado (aquí podrías hacer una llamada real al servidor)
                 await new Promise(resolve => setTimeout(resolve, 1000));
                 
                 return {
@@ -1011,15 +1223,22 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Mostrar confirmación genérica
         showConfirmation: function(title, message, onConfirm) {
+            if (!this.elements.confirmationTitle || !this.elements.confirmationMessage) {
+                Logger.error('Elementos de confirmación no encontrados');
+                return;
+            }
+            
             this.elements.confirmationTitle.textContent = title;
             this.elements.confirmationMessage.textContent = message;
             
-            this.elements.confirmConfirmationButton.onclick = () => {
-                this.closeModal(this.elements.confirmationModal);
-                if (typeof onConfirm === 'function') {
-                    onConfirm();
-                }
-            };
+            if (this.elements.confirmConfirmationButton) {
+                this.elements.confirmConfirmationButton.onclick = () => {
+                    this.closeModal(this.elements.confirmationModal);
+                    if (typeof onConfirm === 'function') {
+                        onConfirm();
+                    }
+                };
+            }
             
             this.openModal(this.elements.confirmationModal);
         },
@@ -1033,12 +1252,17 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    // Funciones de UI
+    // Funciones de UI mejoradas
     function displayResult(message, isError = false) {
+        if (!resultDisplay) return;
+        
         resultDisplay.innerHTML = `<p class="${isError ? 'error' : 'success'}">${message}</p>`;
+        Logger.debug('Resultado mostrado', { message, isError });
     }
 
     function displayPalletSummary(palletData) {
+        if (!palletSummary) return;
+        
         palletSummary.innerHTML = ''; 
         
         if (!palletData) {
@@ -1046,70 +1270,76 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         
-        if (palletData.found && palletData.products && palletData.products.length > 0) {
-            let statusColorClass = (palletData.statusSummary || 'mixto').toLowerCase().replace(/\s+/g, '-');
-            let html = `<div class="pallet-summary-header">
-                            <h4>ID Pallet: <span class="highlight">${palletData.id}</span></h4>
-                            <button class="btn-icon edit-pallet-btn" title="Editar pallet" onclick="PalletManager.showEditPalletModal('${palletData.id}')">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                                </svg>
-                            </button>
-                        </div>`;
-            html += `<p><strong>Estado General (Sistema):</strong> <span class="status-${statusColorClass}">${(palletData.statusSummary || 'Mixto').toUpperCase()}</span></p>`;
-            html += `<p><strong>Productos en Pallet (Sistema): ${palletData.products.length}</strong></p>`;
-            html += '<ul>';
-            
-            palletData.products.forEach((product, index) => {
-                const systemQuantity = product["Inventario físico"];
-                const systemQuantityFormatted = (systemQuantity !== undefined && systemQuantity !== '') 
-                    ? InventorySystem.Utils.formatNumber(systemQuantity) 
-                    : 'N/A';
+        try {
+            if (palletData.found && palletData.products && palletData.products.length > 0) {
+                let statusColorClass = (palletData.statusSummary || 'mixto').toLowerCase().replace(/\s+/g, '-');
+                let html = `<div class="pallet-summary-header">
+                                <h4>ID Pallet: <span class="highlight">${palletData.id}</span></h4>
+                                <button class="btn-icon edit-pallet-btn" title="Editar pallet" onclick="PalletManager.showEditPalletModal('${palletData.id}')">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                                    </svg>
+                                </button>
+                            </div>`;
+                html += `<p><strong>Estado General (Sistema):</strong> <span class="status-${statusColorClass}">${(palletData.statusSummary || 'Mixto').toUpperCase()}</span></p>`;
+                html += `<p><strong>Productos en Pallet (Sistema): ${palletData.products.length}</strong></p>`;
+                html += '<ul>';
                 
-                const productCode = product["Código de artículo"] 
-                    ? getSafeId(product["Código de artículo"]) 
-                    : `item-${index}-${Date.now()}`;
+                palletData.products.forEach((product, index) => {
+                    const systemQuantity = product["Inventario físico"];
+                    const systemQuantityFormatted = (systemQuantity !== undefined && systemQuantity !== '') 
+                        ? window.InventorySystem.Utils.formatNumber(systemQuantity) 
+                        : 'N/A';
+                    
+                    const productCode = product["Código de artículo"] 
+                        ? getSafeId(product["Código de artículo"]) 
+                        : `item-${index}-${Date.now()}`;
+                    
+                    const almacen = product["Almacén"] || 'N/A';
+                    const nombre = product["Nombre del producto"] || 'N/A';
+                    const codigoArticulo = product["Código de artículo"] || 'N/A';
+                    const disponible = product["Física disponible"];
+                    const disponibleFormatted = (disponible !== undefined && disponible !== '') 
+                        ? window.InventorySystem.Utils.formatNumber(disponible) 
+                        : 'N/A';
+                    const numSerie = product["Número de serie"] || '';
+                    
+                    html += `<li>
+                                <strong>Cód. Artículo:</strong> ${codigoArticulo}<br> 
+                                <strong>Nombre:</strong> ${nombre}<br>
+                                <strong>Inv. Sist.:</strong> <span class="quantity">${systemQuantityFormatted}</span> | 
+                                <strong>Disp. Sist.:</strong> ${disponibleFormatted}<br>
+                                <strong>Almacén:</strong> ${almacen}
+                                ${numSerie ? `| <strong>Nº Serie:</strong> ${numSerie}` : ''}<br>
+                                <label for="counted-${productCode}-${palletData.id}">Cant. Contada:</label>
+                                <input type="number" min="0" id="counted-${productCode}-${palletData.id}" class="counted-quantity-input" 
+                                       data-pallet-id="${palletData.id}" data-product-index="${index}" placeholder="Físico" 
+                                       value="${product.cantidadContada !== undefined ? product.cantidadContada : ''}">
+                                <span id="diff-${productCode}-${palletData.id}" class="quantity-diff"></span>
+                             </li>`;
+                });
                 
-                const almacen = product["Almacén"] || 'N/A';
-                const nombre = product["Nombre del producto"] || 'N/A';
-                const codigoArticulo = product["Código de artículo"] || 'N/A';
-                const disponible = product["Física disponible"];
-                const disponibleFormatted = (disponible !== undefined && disponible !== '') 
-                    ? InventorySystem.Utils.formatNumber(disponible) 
-                    : 'N/A';
-                const numSerie = product["Número de serie"] || '';
+                html += '</ul>';
+                palletSummary.innerHTML = html;
+                attachQuantityChangeListeners();
                 
-                html += `<li>
-                            <strong>Cód. Artículo:</strong> ${codigoArticulo}<br> 
-                            <strong>Nombre:</strong> ${nombre}<br>
-                            <strong>Inv. Sist.:</strong> <span class="quantity">${systemQuantityFormatted}</span> | 
-                            <strong>Disp. Sist.:</strong> ${disponibleFormatted}<br>
-                            <strong>Almacén:</strong> ${almacen}
-                            ${numSerie ? `| <strong>Nº Serie:</strong> ${numSerie}` : ''}<br>
-                            <label for="counted-${productCode}-${palletData.id}">Cant. Contada:</label>
-                            <input type="number" min="0" id="counted-${productCode}-${palletData.id}" class="counted-quantity-input" 
-                                   data-pallet-id="${palletData.id}" data-product-index="${index}" placeholder="Físico" 
-                                   value="${product.cantidadContada !== undefined ? product.cantidadContada : ''}">
-                            <span id="diff-${productCode}-${palletData.id}" class="quantity-diff"></span>
-                         </li>`;
-            });
-            
-            html += '</ul>';
-            palletSummary.innerHTML = html;
-            attachQuantityChangeListeners();
-            
-        } else if (palletData.id && palletData.found) {
-             palletSummary.innerHTML = `<p>Pallet <span class="highlight">${palletData.id}</span> encontrado, pero sin productos detallados o columnas vacías. Estado: ${palletData.statusSummary || 'Desconocido'}</p>`;
-        } else if (palletData.id && !palletData.found) {
-             palletSummary.innerHTML = `<p>Pallet <span class="highlight">${palletData.id}</span> NO ENCONTRADO en inventario maestro.</p>`;
-        } else {
-            palletSummary.innerHTML = '<p>Esperando escaneo o verificación...</p>';
+            } else if (palletData.id && palletData.found) {
+                 palletSummary.innerHTML = `<p>Pallet <span class="highlight">${palletData.id}</span> encontrado, pero sin productos detallados o columnas vacías. Estado: ${palletData.statusSummary || 'Desconocido'}</p>`;
+            } else if (palletData.id && !palletData.found) {
+                 palletSummary.innerHTML = `<p>Pallet <span class="highlight">${palletData.id}</span> NO ENCONTRADO en inventario maestro.</p>`;
+            } else {
+                palletSummary.innerHTML = '<p>Esperando escaneo o verificación...</p>';
+            }
+        } catch (error) {
+            Logger.error('Error al mostrar resumen de pallet', error);
+            palletSummary.innerHTML = '<p class="error">Error al mostrar el resumen del pallet</p>';
         }
     }
 
     function attachQuantityChangeListeners() {
         document.querySelectorAll('.counted-quantity-input').forEach(input => {
+            // Remover listener previo para evitar duplicados
             input.removeEventListener('input', handleQuantityChange); 
             input.addEventListener('input', handleQuantityChange);
             
@@ -1162,10 +1392,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (diffElement) {
                 if (productInfo.cantidadContada !== undefined && !isNaN(productInfo.cantidadContada) && !isNaN(systemQty)) {
                     const diff = productInfo.cantidadContada - systemQty;
-                    diffElement.textContent = ` Dif: ${InventorySystem.Utils.formatNumber(diff)}`;
+                    diffElement.textContent = ` Dif: ${window.InventorySystem.Utils.formatNumber(diff)}`;
                     diffElement.className = 'quantity-diff ' + (diff === 0 ? 'ok' : 'discrepancy');
                 } else if (productInfo.cantidadContada !== undefined && !isNaN(productInfo.cantidadContada)) { 
-                    diffElement.textContent = ` (Contado: ${InventorySystem.Utils.formatNumber(productInfo.cantidadContada)})`;
+                    diffElement.textContent = ` (Contado: ${window.InventorySystem.Utils.formatNumber(productInfo.cantidadContada)})`;
                     diffElement.className = 'quantity-diff discrepancy';
                 } else {
                     diffElement.textContent = '';
@@ -1182,6 +1412,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function updateSessionScannedList() {
+        if (!sessionScannedListElement) return;
+        
         sessionScannedListElement.innerHTML = '';
         
         if (scannedPalletsSessionData.length > 0) {
@@ -1245,7 +1477,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Función global para remover pallet
+    // Función global para remover pallet mejorada
     window.removePalletFromSession = function(index) {
         const pallet = scannedPalletsSessionData[index];
         if (!pallet) return;
@@ -1257,16 +1489,20 @@ document.addEventListener('DOMContentLoaded', () => {
             displayResult(`Pallet ${pallet.id} eliminado de la sesión`, false);
             
             // Limpiar resumen si era el pallet mostrado
-            if (palletSummary.innerHTML.includes(pallet.id)) {
+            if (palletSummary && palletSummary.innerHTML.includes(pallet.id)) {
                 palletSummary.innerHTML = '<p>Esperando escaneo o verificación...</p>';
             }
+            
+            Logger.log('Pallet eliminado de sesión', { id: pallet.id, index });
         });
     };
 
-    // Función para verificar sesión al cargar
+    // Función para verificar sesión al cargar mejorada
     function checkForPreviousSession() {
         if (PersistenceManager.hasRecentSession()) {
             const sessionData = PersistenceManager.loadSessionData();
+            
+            if (!sessionData) return;
             
             sessionRecoveryAlert.innerHTML = `
                 <p><strong>Sesión anterior detectada</strong></p>
@@ -1280,29 +1516,40 @@ document.addEventListener('DOMContentLoaded', () => {
             sessionRecoveryAlert.classList.remove('hidden');
             
             // Event listeners para botones de recuperación
-            document.getElementById('recoverSessionButton').addEventListener('click', () => {
-                scannedPalletsSessionData = [...sessionData.pallets];
-                updateSessionScannedList();
-                sessionRecoveryAlert.classList.add('hidden');
-                displayResult(`Sesión recuperada con ${sessionData.pallets.length} pallet(s)`, false);
-            });
+            const recoverBtn = document.getElementById('recoverSessionButton');
+            const discardBtn = document.getElementById('discardSessionButton');
             
-            document.getElementById('discardSessionButton').addEventListener('click', () => {
-                PersistenceManager.clearSessionData();
-                sessionRecoveryAlert.classList.add('hidden');
-                displayResult('Nueva sesión iniciada', false);
-            });
+            if (recoverBtn) {
+                recoverBtn.addEventListener('click', () => {
+                    scannedPalletsSessionData = [...sessionData.pallets];
+                    updateSessionScannedList();
+                    sessionRecoveryAlert.classList.add('hidden');
+                    displayResult(`Sesión recuperada con ${sessionData.pallets.length} pallet(s)`, false);
+                    Logger.log('Sesión anterior recuperada', { pallets: sessionData.pallets.length });
+                });
+            }
+            
+            if (discardBtn) {
+                discardBtn.addEventListener('click', () => {
+                    PersistenceManager.clearSessionData();
+                    sessionRecoveryAlert.classList.add('hidden');
+                    displayResult('Nueva sesión iniciada', false);
+                    Logger.log('Sesión anterior descartada');
+                });
+            }
         }
     }
 
-    // Función de verificación de pallet (mejorada)
+    // Función de verificación de pallet mejorada
     async function checkPalletId(palletId, fromScan = false) {
-        const trimmedPalletId = String(palletId).trim();
+        const validation = window.InventorySystem.Utils.validatePalletId(palletId);
         
-        if (!trimmedPalletId) {
-            displayResult('Por favor, ingrese un ID de pallet.', true);
+        if (!validation.isValid) {
+            displayResult(validation.error || 'ID de pallet inválido', true);
             return;
         }
+        
+        const trimmedPalletId = validation.value;
         
         if (isProcessingRequest) {
             displayResult('Procesando solicitud anterior, espere un momento...', true);
@@ -1322,6 +1569,10 @@ document.addEventListener('DOMContentLoaded', () => {
         Logger.log("Enviando solicitud", { id: trimmedPalletId });
 
         try {
+            if (!navigator.onLine) {
+                throw new Error('Sin conexión a internet');
+            }
+
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 20000);
             
@@ -1387,6 +1638,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (existingEntryIndex > -1) {
                         const existingEntry = scannedPalletsSessionData[existingEntryIndex];
                         
+                        // Preservar cantidades contadas previas
                         palletInfoForSession.products.forEach((newProdInfo, newProdIndex) => {
                             const existingProdInfo = existingEntry.products.find(
                                 ep => ep["Código de artículo"] === newProdInfo["Código de artículo"]
@@ -1447,36 +1699,40 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Funciones del escáner (sin cambios)
+    // Funciones del escáner mejoradas
     function adjustScannerLayout() {
         if (!video || !scannerContainer || !canvasElement) return;
         
-        const containerWidth = Math.min(window.innerWidth - 30, 500);
-        scannerContainer.style.width = containerWidth + 'px';
-        scannerContainer.style.height = 'auto';
-        
-        video.onloadedmetadata = function() {
-            if (video.videoWidth && video.videoHeight) {
-                const videoRatio = video.videoWidth / video.videoHeight;
-                const containerHeight = containerWidth / videoRatio;
-                
-                scannerContainer.style.height = containerHeight + 'px';
-                video.style.width = '100%';
-                video.style.height = '100%';
-                video.style.objectFit = 'cover';
-                
-                canvasElement.width = containerWidth;
-                canvasElement.height = containerHeight;
-                canvasElement.style.width = '100%';
-                canvasElement.style.height = '100%';
-                
-                Logger.log('Scanner layout adjusted', {
-                    containerWidth,
-                    containerHeight,
-                    videoRatio
-                });
-            }
-        };
+        try {
+            const containerWidth = Math.min(window.innerWidth - 30, 500);
+            scannerContainer.style.width = containerWidth + 'px';
+            scannerContainer.style.height = 'auto';
+            
+            video.onloadedmetadata = function() {
+                if (video.videoWidth && video.videoHeight) {
+                    const videoRatio = video.videoWidth / video.videoHeight;
+                    const containerHeight = containerWidth / videoRatio;
+                    
+                    scannerContainer.style.height = containerHeight + 'px';
+                    video.style.width = '100%';
+                    video.style.height = '100%';
+                    video.style.objectFit = 'cover';
+                    
+                    canvasElement.width = containerWidth;
+                    canvasElement.height = containerHeight;
+                    canvasElement.style.width = '100%';
+                    canvasElement.style.height = '100%';
+                    
+                    Logger.log('Scanner layout adjusted', {
+                        containerWidth,
+                        containerHeight,
+                        videoRatio
+                    });
+                }
+            };
+        } catch (error) {
+            Logger.error('Error ajustando layout del escáner', error);
+        }
     }
 
     function initQuagga() {
@@ -1604,20 +1860,24 @@ document.addEventListener('DOMContentLoaded', () => {
         if (scannedCode !== lastScannedIdForTick) {
             lastScannedIdForTick = scannedCode;
             
-            manualPalletIdInput.value = scannedCode;
+            if (manualPalletIdInput) {
+                manualPalletIdInput.value = scannedCode;
+            }
             checkPalletId(scannedCode, true);
             
             clearTimeout(scanDebounceTimeout);
             scanDebounceTimeout = setTimeout(() => {
                 lastScannedIdForTick = null;
-                resultDisplay.innerHTML = "<p>Listo para el siguiente escaneo...</p>";
+                if (resultDisplay) {
+                    resultDisplay.innerHTML = "<p>Listo para el siguiente escaneo...</p>";
+                }
             }, 2500);
         }
     }
 
     function startScanner() {
-        palletSummary.innerHTML = ""; 
-        resultDisplay.innerHTML = "<p>Iniciando cámara...</p>";
+        if (palletSummary) palletSummary.innerHTML = ""; 
+        if (resultDisplay) resultDisplay.innerHTML = "<p>Iniciando cámara...</p>";
 
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
             displayResult("La función de escaneo no es soportada en este navegador.", true);
@@ -1643,7 +1903,9 @@ document.addEventListener('DOMContentLoaded', () => {
             startScanButton.classList.add('hidden');
             stopScanButton.classList.remove('hidden'); 
             
-            resultDisplay.innerHTML = "<p>Cámara activa. Apunte al código del pallet.</p>";
+            if (resultDisplay) {
+                resultDisplay.innerHTML = "<p>Cámara activa. Apunte al código del pallet.</p>";
+            }
             lastScannedIdForTick = null; 
             
             adjustScannerLayout();
@@ -1654,6 +1916,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     initQuagga();
                 }, 300);
             };
+            
+            Logger.log('Escáner iniciado correctamente');
             
         }).catch(function(err) {
             Logger.error("Error al acceder a la cámara", err);
@@ -1746,7 +2010,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function finishAndProcessSession() {
         if (scannedPalletsSessionData.length === 0) {
-            sessionResultDisplay.innerHTML = "<p>No hay pallets escaneados en esta sesión para procesar.</p>";
+            if (sessionResultDisplay) {
+                sessionResultDisplay.innerHTML = "<p>No hay pallets escaneados en esta sesión para procesar.</p>";
+            }
             return;
         }
 
@@ -1755,7 +2021,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         loadingIndicator.classList.remove('hidden');
-        sessionResultDisplay.innerHTML = "<p>Procesando sesión y enviando datos al servidor...</p>";
+        if (sessionResultDisplay) {
+            sessionResultDisplay.innerHTML = "<p>Procesando sesión y enviando datos al servidor...</p>";
+        }
         Logger.log("Iniciando procesamiento de sesión", { pallets: scannedPalletsSessionData.length });
     
         try {
@@ -1789,7 +2057,9 @@ document.addEventListener('DOMContentLoaded', () => {
             Logger.log("Respuesta de procesamiento de sesión", result);
 
             if (result.error) {
-                sessionResultDisplay.innerHTML = `<p class="error">Error al procesar sesión: ${result.error}</p>`;
+                if (sessionResultDisplay) {
+                    sessionResultDisplay.innerHTML = `<p class="error">Error al procesar sesión: ${result.error}</p>`;
+                }
             } else if (result.success) {
                 let summaryHtml = `<p>Pallets Procesados: ${result.summary.palletsProcesados || 0}</p>
                                    <p>Items Procesados: ${result.summary.itemsProcesados || 0}</p>
@@ -1798,9 +2068,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 const logSheetUrl = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID_FOR_LOG_LINK}/edit#gid=${LOG_SHEET_GID_FOR_LOG_LINK}`;
 
-                sessionResultDisplay.innerHTML = `<p class="success">${result.message}</p> 
-                                                ${summaryHtml}
-                                                <p><a href="${logSheetUrl}" target="_blank">Ver Hoja de Resultados del Log</a></p>`;
+                if (sessionResultDisplay) {
+                    sessionResultDisplay.innerHTML = `<p class="success">${result.message}</p> 
+                                                    ${summaryHtml}
+                                                    <p><a href="${logSheetUrl}" target="_blank">Ver Hoja de Resultados del Log</a></p>`;
+                }
                 
                 // Guardar en historial antes de limpiar
                 PersistenceManager.saveToHistory(scannedPalletsSessionData);
@@ -1809,10 +2081,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 scannedPalletsSessionData = [];
                 PersistenceManager.clearSessionData();
                 updateSessionScannedList();
-                resultDisplay.innerHTML = "<p>Sesión procesada. Puede iniciar una nueva.</p>";
-                palletSummary.innerHTML = "";
+                if (resultDisplay) {
+                    resultDisplay.innerHTML = "<p>Sesión procesada. Puede iniciar una nueva.</p>";
+                }
+                if (palletSummary) {
+                    palletSummary.innerHTML = "";
+                }
+                
+                Logger.log('Sesión procesada exitosamente', result.summary);
             } else {
-                 sessionResultDisplay.innerHTML = `<p class="error">Respuesta inesperada del servidor al procesar sesión.</p>`;
+                if (sessionResultDisplay) {
+                    sessionResultDisplay.innerHTML = `<p class="error">Respuesta inesperada del servidor al procesar sesión.</p>`;
+                }
             }
 
         } catch (error) {
@@ -1824,90 +2104,186 @@ document.addEventListener('DOMContentLoaded', () => {
                 errorMessage = "La solicitud tomó demasiado tiempo. El servidor podría estar ocupado.";
             }
             
-            sessionResultDisplay.innerHTML = `<p class="error">Error de conexión al finalizar sesión: ${errorMessage}</p>`;
+            if (sessionResultDisplay) {
+                sessionResultDisplay.innerHTML = `<p class="error">Error de conexión al finalizar sesión: ${errorMessage}</p>`;
+            }
         }
     }
 
-    // Event Listeners
-    startScanButton.addEventListener('click', function(e) {
-        e.preventDefault();
-        if (scanning) return;
-        startScanner();
-    });
-    
-    stopScanButton.addEventListener('click', function(e) {
-        e.preventDefault();
-        e.stopPropagation();
+    // Event Listeners mejorados
+    function attachMainEventListeners() {
+        if (startScanButton) {
+            startScanButton.addEventListener('click', function(e) {
+                e.preventDefault();
+                if (scanning) return;
+                startScanner();
+            });
+        }
         
-        stopScanButton.disabled = true;
-        stopScanner();
+        if (stopScanButton) {
+            stopScanButton.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                stopScanButton.disabled = true;
+                stopScanner();
+                
+                setTimeout(() => {
+                    stopScanButton.disabled = false;
+                }, 1000);
+            });
+        }
         
-        setTimeout(() => {
-            stopScanButton.disabled = false;
-        }, 1000);
-    });
-    
-    checkManualButton.addEventListener('click', () => {
-        checkPalletId(manualPalletIdInput.value.trim());
-    });
-    
-    manualPalletIdInput.addEventListener('keypress', (event) => {
-        if (event.key === 'Enter') {
-            event.preventDefault();
-            checkPalletId(manualPalletIdInput.value.trim());
+        if (checkManualButton) {
+            checkManualButton.addEventListener('click', () => {
+                if (manualPalletIdInput) {
+                    checkPalletId(manualPalletIdInput.value.trim());
+                }
+            });
         }
-    });
-    
-    finishSessionButton.addEventListener('click', finishAndProcessSession);
+        
+        if (manualPalletIdInput) {
+            manualPalletIdInput.addEventListener('keypress', (event) => {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    checkPalletId(manualPalletIdInput.value.trim());
+                }
+            });
+        }
+        
+        if (finishSessionButton) {
+            finishSessionButton.addEventListener('click', finishAndProcessSession);
+        }
 
-    // Event listeners para historial
-    if (historyToggleButton) {
-        historyToggleButton.addEventListener('click', () => {
-            HistoryManager.toggleHistorySection();
+        // Event listeners para historial
+        if (historyToggleButton) {
+            historyToggleButton.addEventListener('click', () => {
+                HistoryManager.toggleHistorySection();
+            });
+        }
+
+        if (clearHistoryButton) {
+            clearHistoryButton.addEventListener('click', () => {
+                HistoryManager.clearAllHistory();
+            });
+        }
+        
+        // Ajustes de ventana
+        window.addEventListener('resize', function() {
+            if (scanning) {
+                adjustScannerLayout();
+            }
         });
+        
+        window.addEventListener('orientationchange', function() {
+            if (scanning) {
+                setTimeout(adjustScannerLayout, 500);
+            }
+        });
+        
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && scanning) {
+                stopScanner();
+            }
+        });
+        
+        document.addEventListener('visibilitychange', function() {
+            if (document.hidden && scanning) {
+                stopScanner();
+            }
+        });
+
+        // Guardar automáticamente antes de cerrar la página
+        window.addEventListener('beforeunload', function() {
+            if (scannedPalletsSessionData.length > 0) {
+                PersistenceManager.saveSessionData(scannedPalletsSessionData);
+            }
+        });
+        
+        Logger.log('Event listeners principales adjuntados');
     }
 
-    if (clearHistoryButton) {
-        clearHistoryButton.addEventListener('click', () => {
-            HistoryManager.clearAllHistory();
-        });
+    // Función principal de inicialización
+    function initializeApp() {
+        try {
+            Logger.log('Iniciando aplicación de inventario v2.1.0');
+            
+            // Inicializar utilidades
+            initializeUtilities();
+            
+            // Verificar disponibilidad de localStorage
+            if (!PersistenceManager.isAvailable()) {
+                displayResult('Advertencia: El almacenamiento local no está disponible. Los datos no se guardarán automáticamente.', true);
+            }
+            
+            // Inicializar PalletManager
+            PalletManager.init();
+            
+            // Adjuntar event listeners principales
+            attachMainEventListeners();
+            
+            // Verificar sesión anterior
+            checkForPreviousSession();
+            
+            // Exponer PalletManager globalmente para funciones onclick del HTML
+            window.PalletManager = PalletManager;
+            
+            Logger.log("Aplicación inicializada correctamente con persistencia y modo edición");
+            
+        } catch (error) {
+            Logger.error('Error crítico al inicializar la aplicación', error);
+            displayResult('Error al inicializar la aplicación. Por favor, recargue la página.', true);
+        }
     }
-    
-    // Ajustes de ventana
-    window.addEventListener('resize', function() {
-        if (scanning) {
-            adjustScannerLayout();
+
+    // Verificar si todos los elementos DOM están disponibles
+    function checkDOMElements() {
+        const requiredElements = [
+            'startScanButton', 'stopScanButton', 'scannerContainer', 'scannerVideo',
+            'manualPalletIdInput', 'checkManualButton', 'resultDisplay', 
+            'palletSummary', 'loadingIndicator', 'sessionScannedList',
+            'finishSessionButton', 'sessionResultDisplay'
+        ];
+        
+        const missingElements = requiredElements.filter(id => !document.getElementById(id));
+        
+        if (missingElements.length > 0) {
+            Logger.error('Elementos DOM faltantes', missingElements);
+            return false;
         }
-    });
-    
-    window.addEventListener('orientationchange', function() {
-        if (scanning) {
-            setTimeout(adjustScannerLayout, 500);
+        
+        return true;
+    }
+
+    // Función de inicio con verificación de DOM
+    function startApp() {
+        if (checkDOMElements()) {
+            initializeApp();
+        } else {
+            Logger.error('No se pueden encontrar todos los elementos DOM necesarios');
+            setTimeout(startApp, 100); // Reintentar después de 100ms
         }
-    });
-    
-    document.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape' && scanning) {
-            stopScanner();
-        }
-    });
-    
-    document.addEventListener('visibilitychange', function() {
-        if (document.hidden && scanning) {
-            stopScanner();
-        }
+    }
+
+    // Inicializar cuando el DOM esté listo
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', startApp);
+    } else {
+        startApp();
+    }
+
+    // Manejo de errores globales
+    window.addEventListener('error', function(event) {
+        Logger.error('Error global capturado', {
+            message: event.message,
+            filename: event.filename,
+            lineno: event.lineno,
+            colno: event.colno
+        });
     });
 
-    // Guardar automáticamente antes de cerrar la página
-    window.addEventListener('beforeunload', function() {
-        if (scannedPalletsSessionData.length > 0) {
-            PersistenceManager.saveSessionData(scannedPalletsSessionData);
-        }
+    window.addEventListener('unhandledrejection', function(event) {
+        Logger.error('Promise rechazada no manejada', event.reason);
     });
-    
-    // Inicialización
-    PalletManager.init();
-    checkForPreviousSession();
-    
-    Logger.log("Aplicación inicializada correctamente con persistencia y modo edición");
+
 });
